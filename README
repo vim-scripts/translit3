@@ -1,0 +1,29 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=3056
+
+This plugin provides the ability to transform one sequence of symbols into-
+another. The typical use case is transliteration of latin symbols into russian-
+symbols for systems without russian keyboard.
+
+Features:
+     transliteration of text, provided as function argument;
+     transliteration of a selection or a line range;
+     input transliteration;
+     setting up the input transliteration in current buffer or in all opened
+      buffers;
+     plugin system for transliteration function;
+     plugin system for input transliteration;
+     loading transliteration table from a file, a variable, a dictionary or
+      a function;
+     displaying the transliteration table on the screen.
+
+This plugin also provides Russian documentation. Add «ru» to option «helplang» in order to use it.
+
+Documentation: http://kp-pav.narod2.ru/vim/doc/translit3.txt.html
+Russian documentation: http://kp-pav.narod2.ru/vim/doc/translit3.rux.html
+Project page: http://sourceforge.net/projects/translit3
+Dependencies (you do not need to install them by yourself, see installation details):
+vimscript #3184, http://sourceforge.net/projects/vimpluginloader
+vimscript #3185, http://sourceforge.net/projects/jsonvim
+vimscript #3186, http://sourceforge.net/projects/vimstuff
+vimscript #3187, http://sourceforge.net/projects/vimargumentchec
+vimscript #3188, http://sourceforge.net/projects/vimcompcrtr
