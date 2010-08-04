@@ -6,6 +6,7 @@ CONTENTS                                                       *tr3-contents*
     2. Functionality provided                          |tr3-functionality|
         2.1. Commands                                  |tr3-commands|
         2.2. Functions                                 |tr3-functions|
+        2.3. Mappings                                  |tr3-mappings|
     3. Options                                         |tr3-options|
     4. String transliteration                          |tr3-trs|
         4.1. Plugins for string transliteration        |tr3-trs-plugins|
@@ -35,13 +36,15 @@ Features:
       a function;
     ∙ displaying the transliteration table on the screen.
 
+This plugin requires chk, json, stuf and load plugins.
+
 =============================================================================
 2. Functionality provided                                 *tr3-functionality*
 
 This plugin provides one command and a number of functions. Both command and 
 function names start with Tr3, but this prefix can be altered (see 
-|tr3-option-FuncPrefix| and |tr3-option-CmdPrefix|). Plugin itself does not 
-use neither this commands, nor this functions, so you can safely modify the 
+|load-opt-_fprefix| and |load-opt-_cprefix|). Plugin itself does not use 
+neither this commands, nor this functions, so you can safely modify the 
 prefix. Possible values of {transsymb} argument you can see in 
 |tr3-transsymb-arg|. Note that in the command line you can use only string 
 values.
@@ -52,16 +55,9 @@ values.
 
 :Tr3Command[!] {action} …                        *tr3-:Command* *:Tr3Command*
                 The only command provided by this plugin. If variable 
-                |g:tr3Options| exists and has key CmdPrefix (see 
-                |tr3-option-CmdPrefix|), then prefix Tr3 is altered.
+                |g:tr3Options| exists and has key _cprefix (see 
+                |load-opt-_cprefix|), then prefix Tr3 is altered.
                 Possible actions:
-:Tr3Command unload                                        *tr3-action-unload*
-                Cancel the input transliteration (if it is set up) and unload 
-                plugin.
-:Tr3Command reload                                        *tr3-action-reload*
-                Cancel the input transliteration (if it is set up), unload 
-                plugin and load it again. Note that the input transliteration 
-                mode won't be restored.
                                                    *tr3-action-transliterate*
 :[range]Tr3Command transliterate {target} [using {transsymb}]
                 Depending on {target} transliterate either selection 
@@ -80,22 +76,10 @@ values.
 :Tr3Command tof restart                              *tr3-action-tof-restart*
                 Cancel the input transliteration mode for the current buffer 
                 and set it up again.
-:Tr3Command print [{transsymb}]                            *tr3-action-print*
-                Display the transliteration table.
-:Tr3Command[!] load {varname} from {filename}              *tr3-action-load*
-                Load JSON file {filename} to variable {varname}. {varname} 
-                must begin with g: or b: and a latin letter or underscore and 
-                contain any number of latin letters, digits, underscores and 
-                dots (dot must not end variable name or go after another dot). 
-                If bang is presen then ignore cache. It is highly recommended 
-                that you compile Vim with |+python| feature and install 
-                package demjson (my JSON parser written in vimscript is much 
-                slower and does not support utf-16 surrogate pairs).
-:Tr3Command dump {varname} to {filename}                    *tr3-action-dump*
-                Dump variable {varname} to file {filename}. Variable {varname} 
-                must exist. It is highly recommended that you compile Vim with 
-                |+python| feature and install package demjson (my JSON dumper 
-                written in vimscript is much slower).
+                                                           *tr3-action-print*
+:Tr3Command print [transsymb {transsymb}] [columns {columns}]
+                Display the transliteration table in {columns} columns 
+                (default: -2 – screen width).
 :Tr3Command[!] add {srcstr} {trstr} [to {transsymb}]         *tr3-action-add*
                 Add string {srcstr} that must be transliterated as {trstr} to 
                 transliteration table and save the result (see 
@@ -122,7 +106,7 @@ values.
                 |tr3-transsymb-arg|) following actions may occur:
                 Source      Action ~
                 File        Dumping transliteration table to JSON file.
-                            See |tr3-action-dump|.
+                            See |json-function-dump|.
                 Variable    Executing “let varname=transsymb”.
                 Function    Calling function with the only argument — altered
                             dictionary. Calling is done via function |call()| 
@@ -133,42 +117,37 @@ values.
 :Tr3Command cache purge {target}                     *tr3-action-cache-purge*
                 Delte {target} cache:
                 {target} value  Cache removed ~
-                file            Values loaded from JSON files.
                 trans           All transliteration table transformations.
                 printtrans      Transformations for displaying tables.
                 toftrans        Transformations for input transliteration.
-:Tr3Command cache show {target}                       *tr3-action-cache-show*
-                Display cache {target}:
-                {target} value  Table displayed ~
-                file            File names — modification times.
-                *trans          Transliteration table source — print cache
-                                population — input transliteration cache 
-                                existance.
+:Tr3Command cache show                               *tr3-action-cache-show*
+                Display cache.
 
 -----------------------------------------------------------------------------
 2.2. Functions                                                 *tr3-functions*
 
-Like command, this functions will have a prefix, defined in 
-|tr3-opctions-FuncPrefix| (Tr3 by default). For possible {transsymb} values 
-see |tr3-transsymb-arg|. All arguments ending with str must have |String| 
-type. Arguments {replace} and {recurse} must be equal to either 1 or 0.
+Like with command, Tr3 function prefix can be altered in g:tr3Options._fprefix 
+option (see |load-opt-_fprefix|). For possible {transsymb} values see 
+|tr3-transsymb-arg|. All arguments ending with str must have |String| type. 
+Arguments {replace} and {recurse} must be equal to either 
+1 or 0.
 
                                                  *tr3-function-transliterate*
 Tr3transliterate({str}[, {transsymb}])                   *Tr3transliterate()*
                 Transliterate text {str}.
                                                            *tr3-function-add*
-Tr3add({srcstr}, {trstr}, {replace}[, {transsymb}])                *Tr3add()*
+Tr3add({srcstr}, {trstr}[, {replace}[, {transsymb}]])             *Tr3add()*
                 Add string {srcstr} that must be transliterated as {trstr} to 
                 transliteration table and save the result (see 
                 |tr3-action-save|). If {replace} is 1 rewrite existing string.
                                                            *tr3-function-del*
-Tr3del({srcstr}, {recurse}[, {transsymb}])                         *Tr3del()*
+Tr3del({srcstr}[, {recurse}[, {transsymb}]])                      *Tr3del()*
                 Delete string {srcstr} from transliteration table and save the 
                 result (see |tr3-action-save|). If {recurse} is 1 delete all 
                 strings beginning with {srcstr}.
                                                      *tr3-function-setoption*
                                                              *Tr3setoption()*
-Tr3setoption({optstr}, {valuestr}, {srcstr}, {replace}[, {transsymb}])
+Tr3setoption({optstr}, {valuestr}, {srcstr}[, {replace}[, {transsymb}]])
                 Set option {option} to value {value} for string {srcstr} in 
                 transliteration table and save the result (see 
                 |tr3-action-save|). Option list is given in 
@@ -180,13 +159,14 @@ Tr3deloption({optstr}, {srcstr}[, {transsymb}])              *Tr3deloption()*
                 table and save the result (see |tr3-action-save|). Option list 
                 is given in |tr3-transsymb-options|.
                                                          *tr3-function-print*
-Tr3print({columns}[, {transsymb}])                               *Tr3print()*
+Tr3print([{columns}[, {transsymb}]])                            *Tr3print()*
                 Depending on {columns} returns:
                 {columns}  Returned value ~
                    -1      List of lists each containing three elements:
                             ∙ string to transliterate
                             ∙ result of transliteration of this string
                             ∙ flags
+                           This is the default.
                     0      List of strings, containing data from previous case 
                            aligned in columns.
                    -2      String, containing transliteration table formatted
@@ -202,6 +182,34 @@ Tr3print({columns}[, {transsymb}])                               *Tr3print()*
                  d    First symbol of transliterated string is combining
                       diacritics symbol, so letter “a” was inserted before the 
                       first symbol.
+
+-----------------------------------------------------------------------------
+2.3. Mappings                                                 *tr3-mappings*
+
+                                               *tr3-<_leader>* *tr3-_leader*
+                                     *tr3-option-_leader* *tr3-option-_maps*
+This plugin provides the following mappings (see |load-opt-_maps| and 
+|load-opt-_leader| for information about how to change default keys and 
+<_leader> (default: “\t”) respectively):
+
+Mapping name    Default keys and description ~
+CmdTransliterate                              *tr3-mapping-CmdTransliterate*
+                Default: <_leader>. Shows input prompt, transliterates the 
+                input and pastes transliteration result. Unlike 
+                |tr3-mapping-Transliterate| this mapping is defined for 
+                command mode.
+Transliterate                                    *tr3-mapping-Transliterate*
+                Default: <_leader>. Shows input prompt, transliterates the 
+                input and pastes transliteration result. This and all 
+                consequent mappings are defined for insert mode.
+TransliterateWord                            *tr3-mapping-TransliterateWord*
+                Default: <_leader>w. Transliterates the word under cursor.
+TransliterateWORD                            *tr3-mapping-TransliterateWORD*
+                Default: <_leader>W. Transliterates the WORD under cursor.
+StartToF                                              *tr3-mapping-StartToF*
+                Default: <_leader>s. Starts input transliteration mode.
+StopToF                                                *tr3-mapping-StopToF*
+                Default: <_leader>S. Stops input transliteration mode.
 
 =============================================================================
 3. Options                                                      *tr3-options*
@@ -255,22 +263,10 @@ Plugs         String transliteration plugins. See |tr3-trs-option-Plugs|.
 ToFPlugs      Plugins for input transliteration.
               See |tr3-tof-option-ToFPlugs|.
               Default value: ["notrans", "brk"]
-
-CmdPrefix                      *tr3-option-CmdPrefix* *tr3-option-FuncPrefix*
-FuncPrefix    Strings, that must start with uppercase latin letter and
-              contain only latin letters, digits and underscores. Must be 
-              defined in dictionary g:tr3Options. If one of this options 
-              contains error no exception is throwed and default value is used 
-              instead.
-              Default value: "Tr3".
                                                        *tr3-option-DoNotLoad*
 DoNotLoad     If this key is found in dictionary g:tr3Options and this plugin
               is not loaded yet then plugin loading is prevented.
               Default value: not present.
-                                                       *tr3-option-UsePython*
-UsePython     Integer, 0 or 1. Defines whether plugin should use Python for
-              JSON parsing and dumping. Note that my alternative for 
-              python+demjson written in vimscript is much slower.
 
 =============================================================================
 4. String transliteration                                           *tr3-trs*
@@ -528,7 +524,7 @@ specify the transliteration table in one of the following ways:
 1. A variable name. Must start with “g:” or “b:” and a latin letter and 
    contain latin letters, digits and dots.
 2. A filename. File must contain JSON-encoded transliteration table 
-   (see |tr3-action-load|).
+   (see |json-function-load|).
 3. A dictionary. See |tr3-transsymb| for the format of the dictionary.
 4. Function that returns a valid transliteration table (see |tr3-transsymb|) 
    when called without arguments and saves modified transliteration table when 
@@ -601,15 +597,15 @@ Greek alphabet:
         β (beta)        b               ο (omicron)     o
         γ (gamma)       g               π (pi)          p
         δ (delta)       d               ρ (rho)         r
-        ε (epsilon)     e               ς (final sigma) c
+        ε (epsilon)     e               ς (final sigma) h,s'
         ζ (zeta)        z               σ (sigma)       s
-        η (eta)         n               τ (tau)         j
+        η (eta)         n,e'            τ (tau)         j,t'
         θ (theta)       t               υ (upsilon)     u
         ι (iota)        i               φ (phi)         f
-        κ (kappa)       k               χ (chi)         h
-        λ (lambda)      l               ψ (psi)         y
+        κ (kappa)       k               χ (chi)         c
+        λ (lambda)      l               ψ (psi)         y,p',f'
         μ (mu)          m               ω (omega)       w
-        ν (nu)          v
+        ν (nu)          v,n'
 
 Quotes:
         « »     << >>   Double angle quotation marks. (Russian first level
