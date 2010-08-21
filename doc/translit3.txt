@@ -129,8 +129,7 @@ values.
 Like with command, Tr3 function prefix can be altered in g:tr3Options._fprefix 
 option (see |load-opt-_fprefix|). For possible {transsymb} values see 
 |tr3-transsymb-arg|. All arguments ending with str must have |String| type. 
-Arguments {replace} and {recurse} must be equal to either 
-1 or 0.
+Arguments {replace} and {recurse} must be equal to either 1 or 0.
 
                                                  *tr3-function-transliterate*
 Tr3transliterate({str}[, {transsymb}])                   *Tr3transliterate()*
