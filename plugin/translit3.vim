@@ -814,7 +814,8 @@ let s:g.tof={
             \   "fstupper": 0,
             \},
             \"failresult": {"status": "failure",},
-            \"initvars": { "notrans": 0, "notransword": 0, },
+            \"initvars": { "notrans": 0, "notransword": 0, "ntword": "",
+            \              "ntwline": 0, },
             \"mutable": {"bufdicts":{}},
         \}
 "{{{3 tof.plug: плагины для транслитерации по мере ввода
@@ -856,15 +857,26 @@ endfunction
 "{{{4 tof.plug.notransword: Не транслитерировать следующее слово
 function s:F.tof.plug.notransword(bufdict, char)
     if a:bufdict.vars.notransword
-        if a:char!~#'^\k*$'
+        let curline=line('.')
+        let curcol=col('.')
+        let curlinestr=getline(curline)
+        let curlinestr=substitute(curlinestr, '\%'.curcol.'c.*', '', '')
+        if a:char!~#'^\k*$' ||
+                    \((a:bufdict.vars.ntwline!=curline &&
+                    \  a:bufdict.vars.ntwline!=curline-1) ||
+                    \ curlinestr!~#s:F.plug.stuf.regescape(
+                    \                   a:bufdict.vars.ntword).'$')
             let a:bufdict.vars.notransword=0
             return {"status": "stopped"}
         endif
+        let a:bufdict.vars.ntword.=a:char
         return      {"status": "success",
                     \"result": s:F.tof.getuntrans(a:bufdict, a:char)}
     endif
     if has_key(a:bufdict.opts.NoTransWord.value, a:char)
         let a:bufdict.vars.notransword=1
+        let a:bufdict.vars.ntwline=line('.')
+        let a:bufdict.vars.ntword=""
         return      {"status": "started",
                     \"result": a:bufdict.opts.NoTransWord.value[a:char]}
     endif
@@ -893,21 +905,19 @@ function s:F.tof.transchar(bufdict, char)
     "{{{4 Плагины
     "{{{5 Если сейчас действует плагин
     let plugresult=""
-    if len(a:bufdict.curplugs)
-        for idx in a:bufdict.curplugs
-            let retstatus=s:F.tof.plugrun(a:bufdict, a:char,
-                        \a:bufdict.plugs[idx], idx)
-            if retstatus.status==#"pass"
-                if has_key(retstatus, "result")
-                    let plugresult.=retstatus.result
-                endif
-            elseif retstatus.status!=#"failure"
-                if has_key(retstatus, "result")
-                    return retstatus.result
-                endif
+    for idx in a:bufdict.curplugs
+        let retstatus=s:F.tof.plugrun(a:bufdict, a:char,
+                    \a:bufdict.plugs[idx], idx)
+        if retstatus.status==#"pass"
+            if has_key(retstatus, "result")
+                let plugresult.=retstatus.result
             endif
-        endfor
-    endif
+        elseif retstatus.status!=#"failure"
+            if has_key(retstatus, "result")
+                return retstatus.result
+            endif
+        endif
+    endfor
     "{{{5 Если нет действующего плагина
     if len(a:bufdict.curtrans)==1
         let i=0
@@ -1649,7 +1659,6 @@ function s:F.mng.tof(bang, action, ...)
         "{{{5 Перезагрузка
         elseif a:action==#"restart"
             let buf=bufnr('%')
-            unlet transsymb
             if has_key(s:g.tof.mutable.bufdicts, buf)
                 let transsymb=s:g.tof.mutable.bufdicts[(buf)].transsymb
                 call s:F.tof.stop(s:g.tof.mutable.bufdicts[buf])
