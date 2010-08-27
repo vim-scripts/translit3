@@ -121,8 +121,8 @@ elseif !exists("s:g.pluginloaded")
                 \    "functions": s:g.ExtFunc,
                 \   "apiversion": "0.0",
                 \       "leader": '\t',
-                \     "requires": [["stuf", '0.0'],
-                \                  ["comp", '0.0'],
+                \     "requires": [["stuf", '0.4'],
+                \                  ["comp", '0.2'],
                 \                  ["load", '0.0'],
                 \                  ["json", '0.0'],
                 \                  ["chk",  '0.0']],
@@ -306,6 +306,8 @@ endfunction
 function s:F.main.destruct()
     call s:F.mng.tof(1, "stop")
     call s:F.plug.comp.delcomp(s:g.comp._cname)
+    call s:F.plug.comp.delcomp(s:g.comp._inputcname)
+    call s:g.map.delinput()
     for F in keys(s:F.int)
         execute "delfunction ".F
     endfor
@@ -1761,7 +1763,7 @@ function s:F.mng.cache(action, ...)
             if index(["var", "file", "func"], source[0])!=-1
                 call add(lines[-1],
                             \(s:g.p.cache.trsrc[source[0]])." ".
-                            \(source[1]))
+                            \fnamemodify(source[1], ':~:.'))
             else
                 call add(lines[-1], s:g.p.cache.trsrc.dict)
             endif
@@ -2011,6 +2013,12 @@ call extend(s:g.c.options, {
             \    "ToFPlugs": s:g.c.tofplugs,
             \"DefaultTranssymb": ["any", ""],
         \})
+"{{{3 Автодополнение строки ввода
+let s:g.comp.inputwords={}
+let s:g.comp.ia={
+            \"model": "inputwords",
+            \"words": ["keyof", s:g.comp.inputwords],
+        \}
 "{{{3 Автодополнение действий
 let s:g.comp.lst.transsymb=[]
 let s:g.comp.trdir=$HOME."/.vim/config/translit3"
@@ -2065,7 +2073,15 @@ let s:g.comp.a.actions.cache.actions.purge.arguments=[["list",
 let s:g.comp.a.actions.cache.actions.show={"model": "simple"}
 "{{{2 comp: автодополнение
 let s:g.comp._cname="translit3"
+let s:g.comp._inputcname="translit3input"
+redir => g:_messages
+try
 let s:F.comp._complete=s:F.plug.comp.ccomp(s:g.comp._cname, s:g.comp.a)
+let s:F.comp._completeinput=s:F.plug.comp.ccomp(s:g.comp._inputcname,
+            \                                   s:g.comp.ia)
+finally
+redir END
+endtry
 "{{{2 map: Функции для привязок
 "{{{3 s:g.map
 let s:g.map={}
@@ -2079,11 +2095,32 @@ let s:g.map.tWregs=[
             \['\(\s*\)', '\(\s*\)'      ],
         \]
 let s:g.map.actions={
-            \"Transliterate": 's:F.trs.main(input("Translit: "), transsymb)',
+            \"Transliterate":     's:F.map.doinput(transsymb)',
             \"TransliterateWord": 's:F.map.lrset(transsymb, s:g.map.twregs)',
             \"TransliterateWORD": 's:F.map.lrset(transsymb, s:g.map.tWregs)',
         \}
 let s:g.map.actions.CmdTransliterate=s:g.map.actions.Transliterate
+"{{{3 map.input
+let [s:F.map.input, s:g.map.delinput]=
+            \s:F.plug.stuf.cinput("translit", "Translit: ",
+            \                     s:F.comp._completeinput)
+"{{{3 map.doinput
+function s:F.map.doinput(transsymb)
+    try
+        let r=s:F.map.input()
+    catch /^Interrupted$/
+        return ""
+    catch
+        throw "Failed to input characters: ".v:exception
+    " finally
+        " redraw!
+    endtry
+    let l=split(r, '\(\\\@<!\(\\.\)*\\\)\@<! ')
+    for s in l
+        let s:g.comp.inputwords[s]=1
+    endfor
+    return s:F.trs.main(r, a:transsymb)
+endfunction
 "{{{3 map.lrset
 function s:F.map.lrset(transsymb, patlist)
     let line=getline('.')
@@ -2138,6 +2175,7 @@ unlockvar! s:g.cache.trans
 unlockvar! s:g.tof.mutable
 unlockvar! s:g.tmp
 unlockvar! s:g.comp.lst.transsymb
+unlockvar! s:g.comp.inputwords
 "{{{1
 lockvar! s:F
 " vim: ft=vim:ts=8:fdm=marker:fenc=utf-8

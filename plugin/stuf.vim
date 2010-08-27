@@ -11,6 +11,7 @@ elseif !exists("s:g.pluginloaded")
     let s:F={
                 \"stuf": {},
                 \"plug": {},
+                \ "cmd": {},
                 \"file": {},
                 \ "str": {},
                 \ "lst": {},
@@ -30,12 +31,13 @@ elseif !exists("s:g.pluginloaded")
     let s:g.reg={}
     let s:g.reg.oprefix='^[[:alnum:]_]\+$'
     let s:g.reg.intname='^\([[:alnum:]_]\+.\)*[[:alnum:]_]\+$'
-    "{{{4 s:g.out
-    let s:g.out={}
-    let s:g.out.option={}
+    "{{{4 s:g.cmd
+    let s:g.cmd={}
+    let s:g.cmd.inputs={}
     "{{{4 Функции
     let s:g.c={}
     let s:g.c.sid=["nums", [1]]
+    " XXX cinput - 18
     let s:g.c.functions=[
                 \["let", "lst.let", {}],
                 \["or", "num.or",
@@ -92,6 +94,26 @@ elseif !exists("s:g.pluginloaded")
                 \["readfile",    "file.readfile",
                 \       {   "model": "simple",
                 \        "required": [["file", "r"]]}],
+                \["cinput", "cmd.geninput",
+                \       {   "model": "optional",
+                \        "required": [["and", [["regex", '^\w\+$'],
+                \                              ["not",
+                \                               ["keyof", s:g.cmd.inputs]]]]],
+                \        "optional": [[["type", type("")], {}, ""],
+                \                     [["or", [["type", 2],
+                \                              ["in", ['augroup', 'buffer',
+                \                                      'command', 'dir',
+                \                                      'environment', 'event',
+                \                                      'expression', 'file',
+                \                                      'filetype', 'function',
+                \                                      'help', 'highlight',
+                \                                      'mapping', 'menu',
+                \                                      'option', 'shellcmd',
+                \                                      'syntax', 'tag', '',
+                \                                      'tag_listfiles', 'var']],
+                \                              ["regex",
+                \                               '^custom,\([sS]:\)\@!']]],
+                \                      {}, ""]]}],
             \]
     "{{{4 Команды
     let s:g.load.commands={
@@ -119,7 +141,7 @@ elseif !exists("s:g.pluginloaded")
                 \          "sid": s:g.scriptid,
                 \   "scriptfile": s:g.load.scriptfile,
                 \"dictfunctions": s:g.c.functions,
-                \   "apiversion": "0.3",
+                \   "apiversion": "0.4",
                 \     "requires": [["load", '0.0'],
                 \                  ["chk",  '0.0'],
                 \                  ["comp", '0.1']],
@@ -132,6 +154,13 @@ endif
 let s:g.pluginloaded=1
 "{{{2 Чистка
 unlet s:g.load
+"{{{2 Выводимые сообщения
+let s:g.p={
+            \"emsg": {
+            \   "iexists": "Input with such name already exists",
+            \}
+        \}
+call add(s:g.c.functions[18][2].required[0][1][1], s:g.p.emsg.iexists)
 "{{{1 Вторая загрузка — функции
 "{{{2 plug
 let s:F.plug.comp=s:F.plug.load.lazygetfunctions("comp")
@@ -400,7 +429,7 @@ function s:F.lst.let(list, index, element, ...)
     return a:list
 endfunction
 "{{{2 dct
-"{{{$ dct.recursivefilter
+"{{{3 dct.recursivefilter
 function s:F.dct.recursivefilter(dict, expr)
     let r={}
     for [Key, Val] in items(a:dict)
@@ -412,6 +441,96 @@ function s:F.dct.recursivefilter(dict, expr)
         unlet Val
     endfor
     return r
+endfunction
+"{{{2 cmd
+"{{{3 cmd.histget
+function s:F.cmd.histget(history)
+    let r=[]
+    while 1
+        let histentry=histget(a:history, -1)
+        if histdel(a:history, -1)
+            call insert(r, histentry)
+        else
+            return r
+        endif
+    endwhile
+endfunction
+"{{{3 cmd.histextend
+function s:F.cmd.histextend(history, histlst)
+    while !empty(a:histlst)
+        call histadd(a:history, remove(a:histlst, 0))
+    endwhile
+    return a:histlst
+endfunction
+"{{{3 cmd.input
+function s:F.cmd.input(inputdict, ...)
+    let prompt=get(a:000, 0, a:inputdict.prompt)
+    if type(prompt)!=type("")
+        let prompt=a:inputdict.prompt
+    endif
+    let text=get(a:000, 1, "")
+    let completion=get(a:000, 2, a:inputdict.completion)
+    let histlock=islocked('a:inputdict.history')
+    if !histlock
+        call extend(a:inputdict.inputhistory, s:F.cmd.histget("input"))
+        call s:F.cmd.histextend("input", a:inputdict.history)
+        lockvar a:inputdict.history
+    endif
+    call inputsave()
+    try
+        let r=call("input", [prompt, text]+
+                    \((empty(completion))?([]):([completion])))
+        return r
+    catch /^Vim:Interrupt/
+        throw "Interrupted"
+    catch
+        throw "Input failed: ".v:exception
+    finally
+        call inputrestore()
+        if !histlock
+            unlockvar a:inputdict.history
+            call extend(a:inputdict.history, s:F.cmd.histget("input"))
+            call s:F.cmd.histextend("input", a:inputdict.inputhistory)
+        endif
+    endtry
+endfunction
+"{{{3 cmd.geninput
+function s:F.cmd.geninput(name, prompt, Completion)
+    let entry={
+                \"name": a:name,
+                \"prompt": a:prompt,
+                \"history": [],
+                \"inputhistory": [],
+            \}
+    let s:g.cmd.inputs[a:name]=entry
+    if type(a:Completion)==2
+        let entry.compfunc='g:__complete_input_'.a:name
+        execute      "function ".(entry.compfunc)."(...)\n".
+                    \"    return call(s:g.cmd.inputs.".a:name.".compF, ".
+                    \                "a:000, {})\n".
+                    \"endfunction"
+        let entry.completion="customlist,".(entry.compfunc)
+        let entry.compF=a:Completion
+    else
+        let entry.completion=a:Completion
+    endif
+    let r={}
+    execute      "function r.f(...)\n".
+                \"    return call(s:F.cmd.input, ".
+                \           "[s:g.cmd.inputs.".a:name."]+a:000, {})\n".
+                \"endfunction"
+    execute      "function r.d()\n".
+                \"    return s:F.cmd.delinput(".string(a:name).")\n".
+                \"endfunction"
+    return [r.f, r.d]
+endfunction
+"{{{3 cmd.delinput
+function s:F.cmd.delinput(name)
+    if has_key(s:g.cmd.inputs[a:name], 'compfunc')
+        execute "delfunction ".s:g.cmd.inputs[a:name].compfunc
+    endif
+    unlet s:g.cmd.inputs[a:name]
+    return 1
 endfunction
 "{{{2 main: destruct
 "{{{3 main.destruct: выгрузить плагин
@@ -510,7 +629,7 @@ function s:F.comp._completeE(...)
 endfunction
 "{{{1
 lockvar! s:g
-unlockvar! s:g.out.option
+unlockvar! s:g.cmd.inputs
 lockvar! s:F
 " vim: ft=vim:ts=8:fdm=marker:fenc=utf-8
 
