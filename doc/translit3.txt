@@ -253,7 +253,11 @@ NoTransWord   Dictionary with string values. Keys of this dictionary are used
               Default value: {'%%': ''}
 DefaultTranssymb                                *tr3-option-DefaultTranssymb*
               Default transliteration table. See |tr3-transsymb-arg|.
-              Default value: $HOME/.vim/config/translit3/transsymb.json
+              Default value: transsymb
+ConfigDir                                              *tr3-option-ConfigDir*
+              Directory where main transliteration tables are located. 
+              See |tr3-transsymb-arg|. Default value:
+                                   {plugin-install-dir}/config/translit3
                                                            *tr3-option-Plugs*
 Plugs         String transliteration plugins. See |tr3-trs-option-Plugs|.
               Default value: {"Before": ["brk"],
@@ -332,9 +336,12 @@ status  String, possible values: “success”, “failure” and “pass”. If
         present. Status “success” prevents other plugins from being run and 
         “pass” means “prepend the result and continue”. Status “failure” means 
         “ignore the result and continue”.
-delta   Any integer that is less than byte count of {tail} part. Status
-        “success” means that {match} and part of {tail} with length delta are 
-        considered to be successfully transliterated.
+delta   Any integer that is less than byte count of {tail} part and greater or 
+        equal then -len({match}). Status “success” means that {match} and part 
+        of {tail} with length delta are considered to be successfully 
+        transliterated, negative values mean that part of {match} is 
+        considered to be not transliterated. Note that if delta=-len({match}), 
+        then transliteration function may never end.
 result  Any string. This value will be appended to the transliteration
         result.
 flags   Dictionary with flags. For the description see {flags} argument. All
@@ -523,9 +530,15 @@ specify the transliteration table in one of the following ways:
 1. A variable name. Must start with “g:” or “b:” and a latin letter and 
    contain latin letters, digits and dots.
 2. A filename. File must contain JSON-encoded transliteration table 
-   (see |json-function-load|).
-3. A dictionary. See |tr3-transsymb| for the format of the dictionary.
-4. Function that returns a valid transliteration table (see |tr3-transsymb|) 
+   (see |json-function-load|). Filename must either start with a dot, contain 
+   forward or back slash or end with .json.
+3. A name of a file in directory |tr3-option-ConfigDir| without extension 
+   (extension .json is appended automatically). File must contain JSON-encoded 
+   transliteration table and have .json extension. Filename must not contain 
+   forward or back slashes, start with a dot or a letter and a colon or end 
+   with .json.json.
+4. A dictionary. See |tr3-transsymb| for the format of the dictionary.
+5. Function that returns a valid transliteration table (see |tr3-transsymb|) 
    when called without arguments and saves modified transliteration table when 
    called with a single argument – this transliteration table.
 

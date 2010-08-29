@@ -134,6 +134,8 @@ file        String
             {checkargument}  Meaning ~
                    r         exists and is readable;
                    rw        exists and is writeable;
+                   d         exists and is a directory;
+                   x         exists and is executable;
                    dw        exists, is a directory and is writeable;
                    w         either exists and is writeable or does not
                              exist, but is in directory where we could 

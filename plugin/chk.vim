@@ -43,7 +43,7 @@ elseif !exists("s:g.pluginloaded")
                 \"dictfunctions": s:g.load.f,
                 \          "sid": s:g.load.sid,
                 \   "scriptfile": s:g.load.scriptfile,
-                \   "apiversion": "0.1",
+                \   "apiversion": "0.2",
                 \     "requires": [["load", '0.0']],
             \})
     let s:F.main._eerror=s:g.reginfo.functions.eerror
@@ -467,6 +467,7 @@ function s:F.mod.prefixed(chk, args, shift)
                     let pref=""
                 endif
             endif
+            unlet gres
             "}}}6
             let i+=1
         endwhile
@@ -487,6 +488,7 @@ function s:F.mod.prefixed(chk, args, shift)
             elseif has_key(gres, "result")
                 let result[pref]=gres.result
             endif
+            unlet gres
         endfor
         "}}}5
         call add(args, result)
@@ -617,6 +619,7 @@ function s:F.cchk.getrequired(chk, args, shift)
         elseif has_key(gres, "result")
             call add(args, gres.result)
         endif
+        unlet gres
         let i+=1
     endfor
     "}}}4
@@ -951,6 +954,7 @@ function s:F.achk.dict(chk, Arg)
 endfunction
 "{{{3 achk.file:   Проверить файл
 function s:F.achk.file(chk, Arg)
+    let selfname="achk.file"
     if type(a:Arg)!=type("")
         return s:F.main.eerror(selfname, "value", ["str"])
     endif
@@ -960,6 +964,10 @@ function s:F.achk.file(chk, Arg)
         return filewritable(a:Arg)==1
     elseif a:chk==#"dw"
         return filewritable(a:Arg)==2
+    elseif a:chk==#"d"
+        return isdirectory(a:Arg)
+    elseif a:chk==#"x"
+        return executable(fnamemodify(a:Arg, ':p'))
     elseif a:chk==#"w"
         return s:F.stuf.checkwr(a:Arg)
     endif
@@ -985,6 +993,16 @@ function s:F.achk.hlgroup(Chk, Arg)
         return s:F.main.eerror(selfname, "value", ["str"])
     elseif a:Arg!~#'^[a-zA-Z0-9_]\+$'
         return s:F.main.eerror(selfname, "value", ["hid"], a:Arg)
+    elseif exists("*hlexists")
+        if !hlexists(a:Arg)
+            return s:F.main.eerror(selfname, "value", ["hnf"], a:Arg)
+        endif
+        return 1
+    elseif exists("*highlight_exists")
+        if !highlight_exists(a:Arg)
+            return s:F.main.eerror(selfname, "value", ["hnf"], a:Arg)
+        endif
+        return 1
     endif
     try
         execute "silent highlight ".a:Arg

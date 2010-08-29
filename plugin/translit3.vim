@@ -42,9 +42,9 @@ elseif !exists("s:g.pluginloaded")
                 \   "After":  ["esc", "notransword", "notrans"],
                 \},
                 \"ToFPlugs": ["notransword", "notrans", "brk"],
-                \"DefaultTranssymb":
-                \          fnamemodify(s:g.load.scriptfile, ":h:h").
-                \               "/config/translit3/transsymb.json",
+                \"DefaultTranssymb": "transsymb",
+                \"ConfigDir": fnamemodify(s:g.load.scriptfile, ':h:h').
+                \               "/config/translit3",
             \}
     "{{{3 Команды и функции
     let s:g.load.commands={
@@ -119,13 +119,13 @@ elseif !exists("s:g.pluginloaded")
                 \     "mappings": s:g.load.mappings,
                 \     "commands": s:g.load.commands,
                 \    "functions": s:g.ExtFunc,
-                \   "apiversion": "0.0",
+                \   "apiversion": "0.1",
                 \       "leader": '\t',
                 \     "requires": [["stuf", '0.4'],
                 \                  ["comp", '0.2'],
                 \                  ["load", '0.0'],
                 \                  ["json", '0.0'],
-                \                  ["chk",  '0.0']],
+                \                  ["chk",  '0.2']],
             \})
     let s:F.main.eerror=s:g.reginfo.functions.eerror
     let s:F.main.option=s:g.reginfo.functions.option
@@ -165,6 +165,7 @@ let s:g.p={
             \   "tofgs": "Транслитерация по мере ввода уже запущена ".
             \            "для всех буферов",
             \   "tofns": "Транслитерация по мере ввода ещё не запущена",
+            \     "fnc": "Невозможно вызвать функцию по предоставленной ссылке",
             \},
             \"etype": {
             \     "value": "InvalidValue",
@@ -217,6 +218,7 @@ let s:g.p={
             \    "tofs": "ToF already started",
             \   "tofgs": "ToF already started for all buffers",
             \   "tofns": "ToF not started yet",
+            \     "fnc": "Provided function reference is not callable",
             \},
             \"etype": {
             \     "value": "InvalidValue",
@@ -317,8 +319,23 @@ function s:F.main.destruct()
 endfunction
 "{{{2 comm: save, getresult, gettranssymb
 " Функции, нужные для транслитерации
+"{{{3 comm.remove: Удалить указанный id из кэша
+function s:F.comm.remove(id)
+    for cache in s:g.cache.trans
+        call remove(cache, a:id)
+    endfor
+    for i in range(a:id, len(s:g.cache.trans[0])-1)
+        unlockvar s:g.cache.trans[1][i].id
+        let s:g.cache.trans[1][i].id-=1
+        lockvar s:g.cache.trans[1][i].id
+    endfor
+endfunction
 "{{{3 comm.save: сохранить изменения
 function s:F.comm.save(transsymb)
+    let id=a:transsymb.id
+    if a:transsymb.origin!=#s:g.cache.trans[0][id]
+        call s:F.comm.remove(id)
+    endif
     let src=(a:transsymb.source[0])
     if src=="file"
         return s:F.plug.json.dump(a:transsymb.source[1], a:transsymb.origin)
@@ -496,33 +513,44 @@ function s:F.comm.gettranssymb(...)
     let selfname="comm.gettranssymb"
     "{{{4 Получение таблицы внешнего формата
     if a:000==[]
-        let trans=s:F.main.option("DefaultTranssymb")
+        let l:Trans=s:F.main.option("DefaultTranssymb")
     else
-        let trans=a:000[0]
+        let l:Trans=a:000[0]
     endif
     let rettrans={}
-    if type(trans)==type("")
-        if trans=~#'^[gb]:[a-zA-Z_]\(\w\@<=\.\w\|\w\)*$'
-            if exists(trans)
-                let rettrans=eval(trans)
-                let src=["var", trans]
+    if type(l:Trans)==type("")
+        if l:Trans=~#'^[gb]:[a-zA-Z_]\(\w\@<=\.\w\|\w\)*$'
+            if exists(l:Trans)
+                let rettrans=eval(l:Trans)
+                let src=["var", l:Trans]
             else
                 return s:F.main.eerror(selfname, "value", ["trans"])
             endif
-        elseif filereadable(trans)
-            let fname=fnamemodify(trans, ":p")
+        elseif l:Trans=~#'^\.\|\.json$\|[\\/]' && filereadable(l:Trans)
+            let fname=fnamemodify(l:Trans, ":p")
             let rettrans=s:F.plug.json.load(fname)
             let src=["file", fname]
         else
-            return s:F.main.eerror(selfname, "value", ["trans"])
+            let fname=s:F.main.option("ConfigDir").'/'.l:Trans.".json"
+            let fname=fnamemodify(fname, ":p")
+            if filereadable(fname)
+                let rettrans=s:F.plug.json.load(fname)
+                let src=["file", fname]
+            else
+                return s:F.main.eerror(selfname, "value", ["trans"])
+            endif
         endif
-    elseif type(trans)==type({})
-        let rettrans=trans
+    elseif type(l:Trans)==type({})
+        let rettrans=l:Trans
         let src=["dict", rettrans]
         " 2 — Funcref
-    elseif type(trans)==2
-        let rettrans=call(trans, [], {})
-        let src=["func", trans]
+    elseif type(l:Trans)==2
+        if !exists('*l:Trans')
+            return s:F.main.eerror(selfname, "value",
+                        \          ["fnc"])
+        endif
+        let rettrans=call(l:Trans, [], {})
+        let src=["func", l:Trans]
     else
         return s:F.main.eerror(selfname, "value")
     endif
@@ -532,12 +560,21 @@ function s:F.comm.gettranssymb(...)
     if idx!=-1 && s:g.cache.trans[1][idx]!={}
         let docheck=0
         let fidx=idx
-        while s:g.cache.trans[1][idx].source!=src && idx!=-1
+        while s:g.cache.trans[1][idx].source!=#src && idx!=-1
             let idx=index(s:g.cache.trans[0], rettrans, idx+1)
         endwhile
         if idx!=-1
             return s:g.cache.trans[1][idx]
         endif
+    elseif idx==-1
+        let idx=0
+        while idx<len(s:g.cache.trans[1])
+            if s:g.cache.trans[1][idx].source==#src
+                call s:F.comm.remove(idx)
+            else
+                let idx+=1
+            endif
+        endwhile
     endif
     "{{{4 Получение таблицы транслитерации внут. формата и запись её в кэш
     if docheck
@@ -1360,13 +1397,13 @@ function s:F.mod.add(srcstr, trstr, replace, transsymb)
         endif
     elseif has_key(a:transsymb, curch)
         if type(a:transsymb[curch])==type("")
-            if a:replace
-                let a:transsymb[curch]=s:F.mod.formattotr(tail, a:trstr)
-                return 1
-            elseif len(tail)
+            if len(tail)
                 let a:transsymb[curch]=extend(s:F.mod.formattotr(tail,
                             \                                       a:trstr),
                             \                   {"none": a:transsymb[curch]})
+                return 1
+            elseif a:replace
+                let a:transsymb[curch]=s:F.mod.formattotr(tail, a:trstr)
                 return 1
             else
                 return s:F.main.eerror(selfname, "perm", ["trex"])
@@ -1644,7 +1681,7 @@ let s:g.out={
             \                                 'a:000[1], a:000[3]], {})',
             \"deloption": 'call(s:F.mod.main, ["setoption", '.
             \                                 'a:000[-1], a:000[1], a:000[0], '.
-            \                                 '"", 1], {})',
+            \                                 '"", 2], {})',
             \"print": 'call(s:F.prnt.main, a:000, {})',
             \"transliterate": 'call(s:F.trs.main, a:000, {})',
         \}
@@ -1760,11 +1797,16 @@ function s:F.mng.cache(action, ...)
             call add(lines, [])
             "{{{6 Первый столбец — источник таблицы
             let source=(s:g.cache.trans[1][i].source)
-            if index(["var", "file", "func"], source[0])!=-1
-                call add(lines[-1],
-                            \(s:g.p.cache.trsrc[source[0]])." ".
-                            \fnamemodify(source[1], ':~:.'))
-            else
+            if source[0]==#"var"
+                call add(lines[-1], s:g.p.cache.trsrc.var." ".source[1])
+            elseif source[0]==#"func"
+                call add(lines[-1], s:g.p.cache.trsrc.func." ".
+                            \       substitute(string(source[1]),
+                            \                 '^.\{-}''\(.*\)''.*$', '\1', ''))
+            elseif source[0]==#"file"
+                call add(lines[-1], s:g.p.cache.trsrc.file." ".
+                            \       fnamemodify(source[1], ':~:.'))
+            elseif source[0]==#"dict"
                 call add(lines[-1], s:g.p.cache.trsrc.dict)
             endif
             "{{{6 Второй столбец — заполненность кэша для печати
@@ -2012,6 +2054,7 @@ call extend(s:g.c.options, {
             \                           s:g.c.plugs]]],
             \    "ToFPlugs": s:g.c.tofplugs,
             \"DefaultTranssymb": ["any", ""],
+            \"ConfigDir": ["file", 'd'],
         \})
 "{{{3 Автодополнение строки ввода
 let s:g.comp.inputwords={}
@@ -2021,10 +2064,14 @@ let s:g.comp.ia={
         \}
 "{{{3 Автодополнение действий
 let s:g.comp.lst.transsymb=[]
-let s:g.comp.trdir=$HOME."/.vim/config/translit3"
-let s:g.comp.transsymb=["merge", [["list", s:g.comp.lst.transsymb],
-            \                     ["list", split(glob(s:g.comp.trdir."/*.json"),
-            \                                    "\n")],
+function s:F.comp.trfiles(...)
+    return map(split(expand(fnamemodify(s:F.main.option("ConfigDir"), ':p').
+                \           '/*.json'),
+                \    "\n"),
+                \'substitute(v:val, ''^.*/\([^/]*\)\.json$'', ''\1'', "")')
+endfunction
+let s:g.comp.transsymb=["first", [["list", s:g.comp.lst.transsymb],
+            \                     ["func", s:F.comp.trfiles],
             \                     ["file", ".json"]]]
 let s:g.comp.trsrc=["list", []]
 let s:g.comp.trres=["list", []]

@@ -52,8 +52,9 @@ elseif !exists("s:g.pluginloaded")
                 \       {   "model": "simple",
                 \        "required": [["type", type({})]]}],
                 \["base64decode",   "str.base64decode",
-                \       {   "model": "simple",
-                \        "required": [["type", type("")]]}],
+                \       {   "model": "optional",
+                \        "required": [["type", type("")]],
+                \        "optional": [[["bool", ""], {}, 0]]}],
                 \["regescape",   "str.escapefor.regex",
                 \       {   "model": "simple",
                 \        "required": [["type", type("")]]}],
@@ -96,7 +97,7 @@ elseif !exists("s:g.pluginloaded")
                 \        "required": [["file", "r"]]}],
                 \["cinput", "cmd.geninput",
                 \       {   "model": "optional",
-                \        "required": [["and", [["regex", '^\w\+$'],
+                \        "required": [["and", [["regex", '^[a-z][a-z_]*$'],
                 \                              ["not",
                 \                               ["keyof", s:g.cmd.inputs]]]]],
                 \        "optional": [[["type", type("")], {}, ""],
@@ -312,14 +313,18 @@ endfunction
 let s:g.str.cd64=map(split("|$$$}rstuvwxyz{$$$$$$$>?@ABCDEFGHIJKLMNOPQRSTUVW$$$$$$XYZ[\\]^_`abcdefghijklmnopq",
             \              '\zs'),
             \        'char2nr(v:val)')
-function s:F.str.base64decode(str)
+function s:F.str.base64decode(str, bytearray)
     let str=map(split(substitute(a:str, '[^a-zA-Z0-9+/]', '', 'g'), '\zs'),
                 \'char2nr(v:val)')+[-1]
     let in=repeat([0], 4)
     let v=0
     let len=0
     let i=0
-    let r=""
+    if a:bytearray
+        let r=[]
+    else
+        let r=""
+    endif
     while str!=[]
         let i=0
         let len=0
@@ -347,8 +352,13 @@ function s:F.str.base64decode(str)
                         \s:F.num.or(            in[1]*16,        in[2]/4),
                         \s:F.num.or(s:F.num.and(in[2]*64, 0xC0), in[3])]
             call map(out, 's:F.num.and(v:val, 0xFF)')
-            let r.=join(map(out[:(len-1)], 'eval(printf(''"\x%02x"'', v:val))'),
-                        \"")
+            if a:bytearray
+                let r+=out[:(len-2)]
+            else
+                let r.=join(map(out[:(len-2)],
+                            \   'eval(printf(''"\x%02x"'', v:val))'),
+                            \"")
+            endif
         endif
     endwhile
     return r
@@ -443,6 +453,18 @@ function s:F.dct.recursivefilter(dict, expr)
     return r
 endfunction
 "{{{2 cmd
+"{{{3 cmd.savehist
+function s:F.cmd.savehist()
+    if &viminfo=~'!'
+        for [key, value] in items(s:g.cmd.inputs)
+            let g:STUF_HISTORY_{toupper(key)}=join(value.history, "\n")
+        endfor
+    endif
+endfunction
+augroup StufStoreHistory
+    autocmd!
+    autocmd VimLeavePre * call s:F.cmd.savehist()
+augroup END
 "{{{3 cmd.histget
 function s:F.cmd.histget(history)
     let r=[]
@@ -502,6 +524,9 @@ function s:F.cmd.geninput(name, prompt, Completion)
                 \"history": [],
                 \"inputhistory": [],
             \}
+    if exists('g:STUF_HISTORY_'.toupper(a:name))
+        call extend(entry.history, split(g:STUF_HISTORY_{toupper(a:name)},"\n"))
+    endif
     let s:g.cmd.inputs[a:name]=entry
     if type(a:Completion)==2
         let entry.compfunc='g:__complete_input_'.a:name
@@ -621,9 +646,11 @@ let s:g.comp.Emodel=
             \                          ["file", ""]]]]}
 function s:F.comp._completeE(...)
     if !has_key(s:F.comp, "__completeE")
+        unlockvar! s:F.comp
         let s:F.comp.__completeE=
                     \s:F.plug.load.run(s:F.plug.comp, "ccomp",
                     \                  s:g.comp._cnameE, s:g.comp.Emodel)
+        lockvar! s:F.comp
     endif
     return call(s:F.comp.__completeE, a:000, {})
 endfunction
