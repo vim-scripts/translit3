@@ -266,6 +266,21 @@ Plugs         String transliteration plugins. See |tr3-trs-option-Plugs|.
 ToFPlugs      Plugins for input transliteration.
               See |tr3-tof-option-ToFPlugs|.
               Default value: ["notrans", "brk"]
+                                                       *tr3-option-WriteFunc*
+WriteFunc     Name of the function that will be used to write characters in 
+              input transliteration mode. Normally |tr3-action-tof-start| 
+              defines an expr mappings, something like that: >
+                  inoremap <expr> <buffer> {c} {str}
+<             where {c} is a character that can be transliterated and {str} is 
+              an expression that returns result of transliteration. If this 
+              option is set and is not null, then it will produce >
+                  inoremap <buffer> {c} <C-\><C-o>:call call({WF}, [{str}], {})
+<             where {WF} is a write function name. Instead of specifing 
+              existing function, you may use one of predefined functions. Here 
+              is the list with their descriptions:
+              WriteFunc   Description ~
+              @conque     This function adds support for Conque Shell plugin. 
+                          You should use it only in conque terminals.
                                                        *tr3-option-DoNotLoad*
 DoNotLoad     If this key is found in dictionary g:tr3Options and this plugin
               is not loaded yet then plugin loading is prevented.

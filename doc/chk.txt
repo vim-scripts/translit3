@@ -65,6 +65,14 @@ func        (a -> Bool) (any function that takes {argument} and
                                                             *chk-check-type*
 type        Int (any integer from 0 to 5)
             Checks, whether type of {argument} is {checkargument}.
+                                                          *chk-check-isfunc*
+isfunc      Bool (0 or 1)
+            Checks, whether {argument} is function reference and it is 
+            callable. It is similar to |chk-check-type| when {checkargument} 
+            is 2, but prevents from supplying function references that are not 
+            callable (for example, if this reference points to script-local 
+            function). If {checkargument} is 1, then check also accepts 
+            strings with function names.
                                                             *chk-check-bool*
 bool        _ (argument is ignored)
             Checks, whether {argument} is either 0 or 1.
@@ -203,17 +211,23 @@ simple    Required keys: "required" :: [ ArgTrans ] (list of transformations)
 <
                                                         *chk-model-optional*
 optional  Required keys: no
-          Optional keys: "required" :: [ ArgTrans ] and
+          Optional keys: "required" :: [ ArgTrans ]
                          "optional" :: [(ArgTrans, ArgTrans, a)]
                               (list of lists of three elements: transformation 
                               for present argument, transformation for default 
                               value and default value)
+                         "next" :: ArgTrans
           Meaning: there must be at least len("required") arguments (or 0 if
                    it is not present) and at most len("optional") optional 
-                   arguments. If some optional argument is present it is 
-                   transformed by first ArgTrans. If it is not present, then 
-                   third value in list is transformed using the second 
-                   ArgTrans.
+                   arguments (unless "next" key is present). If some optional 
+                   argument is present it is transformed by first ArgTrans. If 
+                   it is not present, then third value in list is transformed 
+                   using the second ArgTrans. After all optional arguments 
+                   were processed, all other arguments are transformed using 
+                   ArgTrans from "next" key. If there is no "next" key and 
+                   number of arguments is greater then number of required plus 
+                   number of optional arguments, then 0 is returned, 
+                   indicating that an error occured.
           Example:
               If we need to check arguments to the |matchstr()| function: >
               matchstr(String, Regex[, UInteger[, UInteger]])

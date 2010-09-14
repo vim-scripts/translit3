@@ -45,6 +45,7 @@ elseif !exists("s:g.pluginloaded")
                 \"DefaultTranssymb": "transsymb",
                 \"ConfigDir": fnamemodify(s:g.load.scriptfile, ':h:h').
                 \               "/config/translit3",
+                \"WriteFunc": 0,
             \}
     "{{{3 Команды и функции
     let s:g.load.commands={
@@ -125,7 +126,7 @@ elseif !exists("s:g.pluginloaded")
                 \                  ["comp", '0.2'],
                 \                  ["load", '0.0'],
                 \                  ["json", '0.0'],
-                \                  ["chk",  '0.2']],
+                \                  ["chk",  '0.3']],
             \})
     let s:F.main.eerror=s:g.reginfo.functions.eerror
     let s:F.main.option=s:g.reginfo.functions.option
@@ -914,7 +915,24 @@ let s:g.tof={
             \"initvars": { "notrans": 0, "notransword": 0, "ntword": "",
             \              "ntwline": 0, },
             \"mutable": {"bufdicts":{}},
+            \"bs": "\<C-o>x",
         \}
+"{{{3 tof.*_w: Поддержка нестандартных способов ввода
+function s:F.tof.conque_w(str)
+    if exists('b:ConqueTerm_Var')
+        let lbs=len(s:g.tof.bs)
+        let str=a:str
+        let start=""
+        while str[0:(lbs-1)]==#s:g.tof.bs
+            let start.="\<C-h>"
+            let str=str[(lbs):]
+        endwhile
+        let str=start.str
+        execute 'python '.b:ConqueTerm_Var.'.write(vim.eval("str"))'
+    else
+        call 'normal! i'.a:str
+    endif
+endfunction
 "{{{3 tof.plug: плагины для транслитерации по мере ввода
 "{{{4 tof.plug.notrans: временно прервать транслитерацию
 function s:F.tof.plug.notrans(bufdict, char)
@@ -1019,10 +1037,10 @@ function s:F.tof.transchar(bufdict, char)
     if len(a:bufdict.curtrans)==1
         let i=0
         while i<len(a:bufdict.plugs)
-            let P=a:bufdict.plugs[i]
-            if           (type(P[1])==type([]) && index(P[1], a:char)!=-1) ||
-                        \(type(P[1])==type("") && a:char=~#P[1])
-                let retstatus=s:F.tof.plugrun(a:bufdict, a:char, P, i)
+            let l:P=a:bufdict.plugs[i]
+            if           (type(l:P[1])==type([]) && index(l:P[1], a:char)!=-1) ||
+                        \(type(l:P[1])==type("") && a:char=~#l:P[1])
+                let retstatus=s:F.tof.plugrun(a:bufdict, a:char, l:P, i)
                 if retstatus.status==#"pass"
                     if has_key(retstatus, "result")
                         let plugresult.=retstatus.result
@@ -1100,7 +1118,7 @@ function s:F.tof.transchar(bufdict, char)
             " Результат транслитерации
             let result=s:F.comm.getresult(curtrans.none, a:bufdict.flags)
             " Замена предыдущего результата транслитерации
-            let bsseq=repeat("\<BS>", s:F.stuf.strlen(a:bufdict.curtrseq))
+            let bsseq=repeat(s:g.tof.bs, s:F.stuf.strlen(a:bufdict.curtrseq))
             "{{{7 Combining diacritics
             "{{{8 !delcombine
             " В этом случае нужно заботится только о том, является ли диакритика 
@@ -1133,7 +1151,7 @@ function s:F.tof.transchar(bufdict, char)
                     let fch=s:F.stuf.nextchar_nr(fstr)
                     let fstr=fstr[(len(fch)):]
                     if s:F.stuf.iscombining(fch)
-                        let bsseq.="\<BS>"
+                        let bsseq.=s:g.tof.bs
                     endif
                 endwhile
             endif
@@ -1191,11 +1209,18 @@ function s:F.tof.map(bufdict, char)
         endif
         let a:bufdict.exmaps[a:char]=[mapcmd, exmap]
     endif
-    execute 'inoremap <special> <expr> <buffer> '.char.' '.
-                \'call(<SID>Eval("s:F.tof.transchar"), '.
-                \'[<SID>Eval("s:g.tof.mutable.bufdicts['.
-                \   (a:bufdict.bufnr).']"), '.
-                \'"'.escape(a:char, '>|"\').'"], {})'
+    let charexpr='call(<SID>Eval("s:F.tof.transchar"), '.
+                \     '[<SID>Eval("s:g.tof.mutable.bufdicts['.
+                \               (a:bufdict.bufnr).']"),'.
+                \      '"'.substitute(escape(a:char, '>|"\'),
+                \                     "\n", '\\n', 'g').'"], {})'
+    if type(a:bufdict.writefunc)==type(0)
+        execute 'inoremap <special> <expr> <buffer> '.char.' '.charexpr
+    else
+        execute 'inoremap <special> <buffer> '.char.' '.
+                    \'<C-\><C-o>:call call('.a:bufdict.writefunc.', '.
+                    \                     '['.charexpr.'], {})<CR>'
+    endif
     return 1
 endfunction
 "{{{3 tof.formattrlistch: список всех символов
@@ -1320,6 +1345,12 @@ function s:F.tof.makemaps(bufdict)
     return 1
 endfunction
 "{{{3 tof.setup: включить транслитерацию по мере ввода
+"{{{4 s:g.tof.rewritefunc
+let s:g.tof.rewritefunc={
+            \'@conque': '<SID>Eval("s:F.tof.conque_w")',
+        \}
+lockvar! s:g.tof.rewritefunc
+"}}}4
 function s:F.tof.setup(buffer, transsymb)
     let bufdict={
                 \"transsymb": a:transsymb,
@@ -1331,8 +1362,14 @@ function s:F.tof.setup(buffer, transsymb)
                 \   "exmaps": {},
                 \     "vars": deepcopy(s:g.tof.initvars),
                 \    "plugs": [],
-                \  "curplugs": [],
+                \ "curplugs": [],
+                \"writefunc": s:F.main.option("WriteFunc"),
             \}
+    if has_key(s:g.tof.rewritefunc, bufdict.writefunc)
+        let bufdict.writefunc=s:g.tof.rewritefunc[bufdict.writefunc]
+    elseif type(bufdict.writefunc)!=type(0)
+        let bufdict.writefunc="'".bufdict.writefunc."'"
+    endif
     lockvar! bufdict.bufnr
     let s:g.tof.mutable.bufdicts[bufdict.bufnr]=bufdict
     augroup Tr3ToF
@@ -1361,6 +1398,9 @@ function s:F.tof.stop(bufdict)
     if curbuf!=a:bufdict.bufnr
         execute "buffer ".(a:bufdict.bufnr)
     endif
+    augroup Tr3ToF
+        execute "autocmd! * <buffer=".(a:bufdict.bufnr).">"
+    augroup END
     call s:F.tof.unmap(a:bufdict)
     unlet s:g.tof.mutable.bufdicts[(a:bufdict.bufnr)]
     if curbuf!=a:bufdict.bufnr
@@ -2037,12 +2077,12 @@ let s:g.c.str=["type", type("")]
 let s:g.c.reg=["isreg", '']
 let s:g.c.ssd=["dict", [[s:g.c.str, s:g.c.str]]]
 let s:g.c.plugs=["alllst", ["or", [["in", keys(s:F.trs.plug)],
-            \                      ["chklst", [["type", 2],
+            \                      ["chklst", [["isfunc", 0],
             \                                  s:g.c.reg]]]]]
 let s:g.c.tof=["or", [["alllst", s:g.c.str],
             \         s:g.c.reg]]
 let s:g.c.tofplugs=["alllst", ["or", [["in", keys(s:F.tof.plug)],
-            \                         ["chklst", [["type", 2],
+            \                         ["chklst", [["isfunc", 0],
             \                                     s:g.c.tof]]]]]
 call extend(s:g.c.options, {
             \      "BrkSeq": s:g.c.str,
@@ -2055,6 +2095,10 @@ call extend(s:g.c.options, {
             \    "ToFPlugs": s:g.c.tofplugs,
             \"DefaultTranssymb": ["any", ""],
             \"ConfigDir": ["file", 'd'],
+            \"WriteFunc": ["or", [["equal", 0],
+            \                     ["keyof", s:g.tof.rewritefunc],
+            \                     ["and", [["type", type("")],
+            \                              ["isfunc", 1]]]]],
         \})
 "{{{3 Автодополнение строки ввода
 let s:g.comp.inputwords={}
