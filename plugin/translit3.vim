@@ -915,7 +915,7 @@ let s:g.tof={
             \"initvars": { "notrans": 0, "notransword": 0, "ntword": "",
             \              "ntwline": 0, },
             \"mutable": {"bufdicts":{}},
-            \"bs": "\<C-o>x",
+            \"bs": "\<C-\>\<C-o>ch",
         \}
 "{{{3 tof.*_w: Поддержка нестандартных способов ввода
 function s:F.tof.conque_w(str)
@@ -1120,40 +1120,19 @@ function s:F.tof.transchar(bufdict, char)
             " Замена предыдущего результата транслитерации
             let bsseq=repeat(s:g.tof.bs, s:F.stuf.strlen(a:bufdict.curtrseq))
             "{{{7 Combining diacritics
-            "{{{8 !delcombine
-            " В этом случае нужно заботится только о том, является ли диакритика 
-            " первым символом
-            if !&delcombine
-                let fch=s:F.stuf.nextchar(a:bufdict.curtrseq)
-                let a:bufdict.curtrseq=result
-                let combd=s:F.stuf.iscombining(fch)
-                if combd
-                    let combdlen=combd
-                    let combdcount = !!combd
-                    while combd
-                        let combd=s:F.stuf.iscombining(fch[(combdlen):])
-                        let combdlen+=combd
-                        let combdcount += !!combd
-                    endwhile
-                    let ch=matchstr(curlinestr, '.$')
-                    let result=(ch[:(-1-combdlen)]).result
-                endif
-            "{{{8 delcombine
-            " Здесь нужен <BS> на каждый диакритический знак, кроме самого 
-            " первого
-            else
-                let fstr=a:bufdict.curtrseq
-                let a:bufdict.curtrseq=result
-                " Игнорируем первый символ
-                let fch=s:F.stuf.nextchar_nr(fstr)
-                let fstr=fstr[(len(fch)):]
-                while len(fstr)
-                    let fch=s:F.stuf.nextchar_nr(fstr)
-                    let fstr=fstr[(len(fch)):]
-                    if s:F.stuf.iscombining(fch)
-                        let bsseq.=s:g.tof.bs
-                    endif
+            let fch=s:F.stuf.nextchar(a:bufdict.curtrseq)
+            let a:bufdict.curtrseq=result
+            let combd=s:F.stuf.iscombining(fch)
+            if combd
+                let combdlen=combd
+                let combdcount = !!combd
+                while combd
+                    let combd=s:F.stuf.iscombining(fch[(combdlen):])
+                    let combdlen+=combd
+                    let combdcount += !!combd
                 endwhile
+                let ch=matchstr(curlinestr, '.$')
+                let result=(ch[:(-1-combdlen)]).result
             endif
             "}}}7
         else
