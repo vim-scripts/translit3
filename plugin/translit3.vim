@@ -63,44 +63,29 @@ elseif !exists("s:g.pluginloaded")
                 \"deloption", "print"]
     call map(s:g.ExtFunc, '[v:val, "out.".v:val, {}]')
     "{{{3 Привязки
-    let s:g.load.mappings={
-                \"Transliterate": {
-                \   "type": 'i',
-                \   "function": 'map.runmap',
-                \   "default": '',
-                \   "leader": 1,
-                \},
-                \"CmdTransliterate": {
-                \   "type": 'c',
-                \   "function": 'map.runmap',
-                \   "default": '',
-                \   "leader": 1,
-                \},
-                \"TransliterateWord": {
-                \   "type": 'i',
-                \   "function": 'map.runmap',
-                \   "default": 'w',
-                \   "leader": 1,
-                \},
-                \"TransliterateWORD": {
-                \   "type": 'i',
-                \   "function": 'map.runmap',
-                \   "default": 'W',
-                \   "leader": 1,
-                \},
-                \"StartToF": {
-                \   "type": 'i',
-                \   "function": 'map.runmap',
-                \   "default": 's',
-                \   "leader": 1,
-                \},
-                \"StopToF": {
-                \   "type": 'i',
-                \   "function": 'map.runmap',
-                \   "default": 'S',
-                \   "leader": 1,
-                \},
-            \}
+    let s:g.load.mappings={}
+    let s:mappings=[["Transliterate",     'i', '' ],
+                \   ["CmdTransliterate",  'c', '' ],
+                \   ["TransliterateWord", 'i', 'w'],
+                \   ["TransliterateWORD", 'i', 'W'],
+                \   ["StartToF",          'n', 's'],
+                \   ["StopToF",           'n', 'S'],
+                \   ["TranslitReplace",   ' ', 'r'],
+                \   ["TranslitToNext",    ' ', 't'],
+                \   ["TranslitToPrev",    ' ', 'T'],
+                \   ["TranslitNext",      ' ', 'f'],
+                \   ["TranslitPrev",      ' ', 'F'],
+                \]
+    for [s:map, s:mode, s:key] in s:mappings
+        let s:g.load.mappings[s:map]={
+                    \"type": s:mode,
+                    \"function": 'map.runmap',
+                    \"default": s:key,
+                    \"leader": 1,
+                \}
+        unlet s:map s:mode s:key
+    endfor
+    unlet s:mappings
     "{{{3 sid
     function s:SID()
         return matchstr(expand('<sfile>'), '\d\+\ze_SID$')
@@ -167,6 +152,7 @@ let s:g.p={
             \            "для всех буферов",
             \   "tofns": "Транслитерация по мере ввода ещё не запущена",
             \     "fnc": "Невозможно вызвать функцию по предоставленной ссылке",
+            \    "bnnf": "Не удалось найти буфер с именем «%s»",
             \},
             \"etype": {
             \     "value": "InvalidValue",
@@ -220,6 +206,7 @@ let s:g.p={
             \   "tofgs": "ToF already started for all buffers",
             \   "tofns": "ToF not started yet",
             \     "fnc": "Provided function reference is not callable",
+            \    "bnnf": "Buffer “%s” not found",
             \},
             \"etype": {
             \     "value": "InvalidValue",
@@ -304,7 +291,7 @@ function s:F.stuf.checklod(subj, chk)
                 \(index(values(map(copy(a:subj), a:chk)), 0)!=-1):
                 \(index(map(copy(a:subj), a:chk), 0)!=-1))
 endfunction
-"{{{2 main: eerror, option, destruct
+"{{{2 main: eerror, option, destruct, session
 "{{{3 main.destruct: выгрузить плагин
 function s:F.main.destruct()
     call s:F.mng.tof(1, "stop")
@@ -317,6 +304,33 @@ function s:F.main.destruct()
     unlet s:g
     unlet s:F
     return 1
+endfunction
+"{{{3 main.session: поддержка LoadCommand mksession
+function s:F.main.session(...)
+    if empty(a:000)
+        let r={}
+        let r.tof={}
+        let r.tof.bufinfo={}
+        for [bufnr, bufinfo] in items(s:g.tof.mutable.bufdicts)
+            let r.tof.bufinfo[bufnr]=copy(bufinfo)
+            let r.tof.bufinfo[bufnr].bufname=bufname(bufnr)
+            unlet r.tof.bufinfo[bufnr].plugs
+            unlet r.tof.bufinfo[bufnr].opts
+            unlet r.tof.bufinfo[bufnr].chlist
+            unlet r.tof.bufinfo[bufnr].bufnr
+        endfor
+        return r
+    else
+        let s=a:000[0]
+        " Очистим словарь, не изменяя ссылку
+        for bufnr in keys(s:g.tof.mutable.bufdicts)
+            unlet s:g.tof.mutable.bufdicts[bufnr]
+        endfor
+        " Проверка ввода слишком сложна, поэтому я опускаю её
+        for [bufnr, bufinfo] in items(s.tof.bufinfo)
+            call s:F.tof.setup(0, 0, bufinfo)
+        endfor
+    endif
 endfunction
 "{{{2 comm: save, getresult, gettranssymb
 " Функции, нужные для транслитерации
@@ -960,12 +974,29 @@ function s:F.tof.plug.brk(bufdict, char)
 endfunction
 "{{{4 tof.plug.comm: Транслитерировать только внутри комментария
 function s:F.tof.plug.comm(bufdict, char)
-    " col('.')-1 используется для того, чтобы когда курсор находится «за 
-    " строкой» всё работало нормально.
-    if synIDattr(synIDtrans(synID(line('.'), col('.')-1, 0)), "name") =~?
-                \"comment"
-        return s:g.tof.failresult
+    " synstack cannot work if line is empty
+    if col('$')==1
+        let stack=[synID(line('.'), 1, 0)]
+    else
+        let col=col('.')
+        if col>=col('$')
+            let col=col('$')-1
+        endif
+        try
+            let stack=synstack(line('.'), col)
+            if type(stack)!=type([])
+                unlet stack
+                let stack=[synID(line('.'), 1, 0)]
+            endif
+        catch
+            let stack=[synID(line('.'), 1, 0)]
+        endtry
     endif
+    while !empty(stack)
+        if synIDattr(remove(stack, -1), "name")=~?"comment"
+            return s:g.tof.failresult
+        endif
+    endwhile
     return      {"status": "success",
                 \"result": s:F.tof.getuntrans(a:bufdict, a:char)}
 endfunction
@@ -1063,7 +1094,7 @@ function s:F.tof.transchar(bufdict, char)
         let curlinestr=substitute(curlinestr, '\%'.curcol.'c.*', '', '')
     endif
     "{{{5 Прерывание последовательности
-    if len(a:bufdict.curtrans)>1 &&
+    if a:bufdict.bufnr!=0 && len(a:bufdict.curtrans)>1 &&
                 \((a:bufdict.lastline!=curline &&
                 \  a:bufdict.lastline != curline-1) ||
                 \ curlinestr!~#s:F.plug.stuf.regescape(a:bufdict.curtrseq).'$'||
@@ -1308,7 +1339,12 @@ function s:F.tof.makemaps(bufdict)
     let a:bufdict.chlist=copy(chars)
     "{{{4 Плагины
     let a:bufdict.opts={}
-    let plugs=s:F.main.option("ToFPlugs")
+    if !empty(a:bufdict.originplugs)
+        let plugs=a:bufdict.originplugs
+    else
+        let plugs=s:F.main.option("ToFPlugs")
+        let a:bufdict.originplugs=plugs
+    endif
     call map(copy(plugs), 's:F.tof.addplugin(a:bufdict, v:val)')
     "{{{4 Блокировка
     lockvar! a:bufdict.chlist
@@ -1330,34 +1366,54 @@ let s:g.tof.rewritefunc={
         \}
 lockvar! s:g.tof.rewritefunc
 "}}}4
-function s:F.tof.setup(buffer, transsymb)
-    let bufdict={
-                \"transsymb": a:transsymb,
-                \ "curtrans": [a:transsymb],
-                \ "curtrseq": "",
-                \    "flags": copy(s:g.tof.defaultflags),
-                \ "lastline": -2,
-                \    "bufnr": a:buffer,
-                \   "exmaps": {},
-                \     "vars": deepcopy(s:g.tof.initvars),
-                \    "plugs": [],
-                \ "curplugs": [],
-                \"writefunc": s:F.main.option("WriteFunc"),
-            \}
-    if has_key(s:g.tof.rewritefunc, bufdict.writefunc)
-        let bufdict.writefunc=s:g.tof.rewritefunc[bufdict.writefunc]
-    elseif type(bufdict.writefunc)!=type(0)
-        let bufdict.writefunc="'".bufdict.writefunc."'"
+function s:F.tof.setup(buffer, transsymb, ...)
+    let selfname="tof.setup"
+    if empty(a:000)
+        let bufdict={
+                    \"transsymb": a:transsymb,
+                    \ "curtrans": [a:transsymb],
+                    \ "curtrseq": "",
+                    \    "flags": copy(s:g.tof.defaultflags),
+                    \ "lastline": -2,
+                    \    "bufnr": a:buffer,
+                    \   "exmaps": {},
+                    \     "vars": deepcopy(s:g.tof.initvars),
+                    \    "plugs": [],
+                    \ "curplugs": [],
+                    \"writefunc": s:F.main.option("WriteFunc"),
+                    \   "chlist": [],
+                    \     "opts": {},
+                    \"originplugs": [],
+                \}
+        if has_key(s:g.tof.rewritefunc, bufdict.writefunc)
+            let bufdict.writefunc=s:g.tof.rewritefunc[bufdict.writefunc]
+        elseif type(bufdict.writefunc)!=type(0)
+            let bufdict.writefunc="'".bufdict.writefunc."'"
+        endif
+    else
+        let bufdict=a:000[0]
+        " Здесь приходится идентифицировать буфер по имени, что не всегда 
+        " надёжно
+        let bufdict.bufnr=bufnr(bufdict.bufname)
+        if empty(bufdict.bufnr)
+            return s:F.main.eerror(selfname, "nfnd", ["bnnf", bufdict.bufname])
+        endif
+        unlet bufdict.bufname
     endif
     lockvar! bufdict.bufnr
-    let s:g.tof.mutable.bufdicts[bufdict.bufnr]=bufdict
-    augroup Tr3ToF
-        execute "autocmd! * <buffer=".(bufdict.bufnr).">"
-        execute "autocmd BufWipeout <buffer=".(bufdict.bufnr)."> call ".
-                    \"s:F.tof.stop(copy(s:g.tof.mutable.bufdicts[".
-                    \   (bufdict.bufnr)."]))"
-    augroup END
-    return s:F.tof.makemaps(bufdict)
+    lockvar 1 bufdict
+    if bufdict.bufnr!=0
+        let s:g.tof.mutable.bufdicts[bufdict.bufnr]=bufdict
+        augroup Tr3ToF
+            execute "autocmd! * <buffer=".(bufdict.bufnr).">"
+            execute "autocmd BufWipeout <buffer=".(bufdict.bufnr)."> call ".
+                        \"s:F.tof.stop(copy(s:g.tof.mutable.bufdicts[".
+                        \   (bufdict.bufnr)."]))"
+        augroup END
+        return s:F.tof.makemaps(bufdict)
+    else
+        return bufdict
+    endif
 endfunction
 "{{{3 tof.unmap: удалить привязки
 function s:F.tof.unmap(bufdict)
@@ -2168,6 +2224,11 @@ let s:g.map.actions={
             \"Transliterate":     's:F.map.doinput(transsymb)',
             \"TransliterateWord": 's:F.map.lrset(transsymb, s:g.map.twregs)',
             \"TransliterateWORD": 's:F.map.lrset(transsymb, s:g.map.tWregs)',
+            \"TranslitReplace":   's:F.map.doonchar("r", transsymb)',
+            \"TranslitToNext":    's:F.map.doonchar("t", transsymb)',
+            \"TranslitToPrev":    's:F.map.doonchar("T", transsymb)',
+            \"TranslitNext":      's:F.map.doonchar("f", transsymb)',
+            \"TranslitPrev":      's:F.map.doonchar("F", transsymb)',
         \}
 let s:g.map.actions.CmdTransliterate=s:g.map.actions.Transliterate
 "{{{3 map.input
@@ -2221,6 +2282,49 @@ function s:F.map.lrset(transsymb, patlist)
     let vcolend=virtcol([curline, column+len(rmatch)])
     return "\<C-o>".vcolstart."|\<C-\>\<C-o>\"_d".vcolend."|".
                 \((vcolend==virtcol('$'))?("\<C-\>\<C-o>\"_x"):("")).r
+endfunction
+"{{{3 map.getchar
+function s:F.map.getchar(transsymb)
+    let char=getchar()
+    if type(char)==type(0)
+        let char=nr2char(char)
+    endif
+    if &timeout
+        let timeout=&timeoutlen/1000.0
+    else
+        let timeout=-1
+    endif
+    let bufdict=s:F.tof.setup(0, a:transsymb)
+    let oldbclen=1
+    let result=s:F.tof.transchar(bufdict, char)
+    let bufdict.curtrseq=""
+    let time=reltime()
+    let addchar=""
+    while ((timeout>0)?(eval(reltimestr(reltime(time)))<timeout):(1)) &&
+                \len(bufdict.curtrans)>oldbclen
+        if getchar(1)
+            let char=getchar()
+            if type(char)==type(0)
+                let char=nr2char(char)
+            endif
+            let newresult=s:F.tof.transchar(bufdict, char)
+            if len(bufdict.curtrans)<=oldbclen
+                let addchar=char
+                break
+            endif
+            let bufdict.curtrseq=""
+            let result=newresult
+            let oldbclen+=1
+            let time=reltime()
+        else
+            sleep 50m
+        endif
+    endwhile
+    return [result, addchar]
+endfunction
+"{{{3 map.doonchar
+function s:F.map.doonchar(command, transsymb)
+    return a:command.join(s:F.map.getchar(a:transsymb), "")
 endfunction
 "{{{3 map.runmap
 function s:F.map.runmap(type, mapname, mapstring, buffer)

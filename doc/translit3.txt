@@ -209,6 +209,20 @@ StartToF                                              *tr3-mapping-StartToF*
                 Default: <_leader>s. Starts input transliteration mode.
 StopToF                                                *tr3-mapping-StopToF*
                 Default: <_leader>S. Stops input transliteration mode.
+TranslitReplace                                *tr3-mapping-TranslitReplace*
+                Default: <_leader>r. Same as |r|, but transliterates its 
+                argument (so, “\tr<=>” typed fast enough will replace the 
+                symbol under the cursor with “⇔”). Note that this mapping 
+                respects 'timeout' and 'timeoutlen' options. Note: it will not 
+                work correctly if transliteration result is longer then one 
+                character.
+                The following mappings work like TranslitReplace:
+TranslitNext                                       *tr3-mapping-TranslitNext*
+TranslitPrev                                       *tr3-mapping-TranslitPrev*
+TranslitToNext                                   *tr3-mapping-TranslitToNext*
+TranslitToPrev                                   *tr3-mapping-TranslitToPrev*
+                Default: <_leader>f, <_leader>F, <_leader>t and <_leader>T. 
+                This mappings are replacements for |f|, |F|, |t| and |T|.
 
 =============================================================================
 3. Options                                                      *tr3-options*
@@ -511,8 +525,8 @@ brk                                                        *tr3-tof-plug-brk*
 comm                                                     *tr3-tof-plug-comm*
         If this plugin is first plugin in the plugins list then input 
         transliteration is only active if you are typing inside a comment. 
-        Being inside a comment means that 
-        (synIDattr(synIDtrans(synID(line,col-1,0)),"name"))=~?"comment".
+        Being inside a comment means that syntax group name of at least one 
+        item in |synstack()| contains string `comment' (case is ignored).
 
 =============================================================================
 6. Transliteration table                                      *tr3-transsymb*
@@ -523,6 +537,7 @@ Transliteration table is a dictionary with the following keys:
 2. Key “none”. Must not be present in the root transliteration table. 
    Corresponding value contains the transliteration result for the current 
    sequence.
+                                                      *tr3-transsymb-options*
 3. Key “options”. Corresponding value must contain a dictionary with pair 
    “capital”: (“none” or “first”). Value “none” means that current sequence 
    does not have an uppercase analogue. Value “first” means that only first 
