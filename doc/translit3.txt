@@ -480,10 +480,28 @@ lastline      Last line number. Used to determine whether user moved cursor
               to another location. May be equal to -2.
 bufnr         Number of the buffer current dictionary is connected to. Do
               not edit.
-exmaps        Dictionary, where keys are {lhs} of mappings defined by
+exmaps        Dictionary, where keys are {lhs} of mappings defined by 
               current input transliteration session and values are pairs 
               [{command}, {oldrhs}], where {command} is either “imap” or 
               “inoremap”. It is used to recreate old mappings.
+exmaps        Dictionary, where keys are {lhs} of mappings defined by 
+              current input transliteration session and values are 
+              dictionaries with the following keys (see |maparg()| if you have 
+              Vim 7.3.32 or higher):
+              Key      Description ~
+              lhs      The {lhs} of the mapping.
+              rhs      The {rhs} of the mapping.
+              silent   1 for a |:map-silent|, 0 otherwise. Always equal to 
+                       0 for vim versions older then 7.3.32.
+              noremap  1 if {rhs} is not remappable, 0 otherwise.
+              expr     1 for an expression mapping (|:map-<expr>|). Always 
+                       equal to 0 for vim versions older then 7.3.32.
+              buffer   1 for a buffer local mapping (|:map-local|). Always 
+                       equal to 2 for vim versions older then 7.3.32.
+              mode     Modes for which mapping is defined. Always equal to "i".
+              sid      The script local ID. Always equal to 0 for vim versions 
+                       older then 7.3.32 (but here <SID> will be expanded by 
+                       |maparg()|).
 vars          Variables created by plugins. Is emptied when transliteration
               fails. Do not change other plugins’ variables.
 plugs         Plugin list. Do not edit.

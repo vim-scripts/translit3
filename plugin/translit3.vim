@@ -1041,7 +1041,18 @@ endfunction
 "{{{3 tof.getuntrans: получить нетранслитерированный результат
 function s:F.tof.getuntrans(bufdict, char)
     if has_key(a:bufdict.exmaps, a:char)
-        return eval('"'.escape(a:bufdict.exmaps[a:char][1], '\<"').'"')
+        let exmap=a:bufdict.exmaps[a:char]
+        " Не парим себе мозги относительно того, что надо вернуть, чтобы 
+        " привязка работала как будто транслитерация по мере ввода не запущена
+        execute  "i".((exmap.noremap)?("nore"):     (""))."map <special> ".
+                    \"<buffer> ".
+                    \((exmap.silent)? ("<silent> "):("")).
+                    \((exmap.expr)?   ("<expr> "):  ("")).
+                    \"<Plug>Translit3TempMap ".
+                    \substitute(exmap.rhs, '<SID>', '<SNR>'.exmap.sid.'_', 'g')
+        " По непонятной причине feedkeys непосредственно в скрипте не работает, 
+        " поэтому используется следующий хак
+        return "\<C-\>\<C-o>:call feedkeys(\"\\<Plug>Translit3TempMap\")\<CR>"
     endif
     return a:char
 endfunction
@@ -1205,19 +1216,39 @@ endfunction
 "{{{3 tof.map: создать привязку
 function s:F.tof.map(bufdict, char)
     let char=s:F.plug.stuf.mapprepare(a:char)
-    let exmap=maparg(a:char, "i")
-    if len(exmap)
-        redir => eximapredir
-        silent! execute "imap ".char
-        redir END
-        let eximapredir=eximapredir[1:-2]
-        let eximaptype=eximapredir[(-len(exmap)-2)][0]
-        if eximaptype==#'*'
-            let mapcmd="inoremap"
-        else
-            let mapcmd="imap"
+    let hasdictmap=(v:version==703 && has("patch32")) || v:version>703
+    if hasdictmap
+        let exmap=maparg(a:char, "i", 0, 1)
+    else
+        let exmap=maparg(a:char, "i")
+        if empty(exmap) && hasmapto(a:char)
+            let exmap="<Nop>"
         endif
-        let a:bufdict.exmaps[a:char]=[mapcmd, exmap]
+    endif
+    if !empty(exmap)
+        if hasdictmap
+            let a:bufdict.exmaps[a:char]=exmap
+        else
+            redir => eximapredir
+            silent! execute "imap ".char
+            redir END
+            let eximapredir=eximapredir[1:-2]
+            let eximaptype=eximapredir[(-len(exmap)-2)][0]
+            let noremap=0
+            if eximaptype==#'*'
+                let mapcmd=1
+            endif
+            let a:bufdict.exmaps[a:char]={
+                        \    "lhs": a:char,
+                        \    "rhs": exmap,
+                        \ "silent": 0,
+                        \"noremap": noremap,
+                        \   "expr": 0,
+                        \ "buffer": 2,
+                        \   "mode": "i",
+                        \    "sid": 0,
+                    \}
+        endif
     endif
     let charexpr='call(<SID>Eval("s:F.tof.transchar"), '.
                 \     '[<SID>Eval("s:g.tof.mutable.bufdicts['.
@@ -1420,9 +1451,16 @@ function s:F.tof.unmap(bufdict)
     for M in a:bufdict.chlist
         let curch=s:F.plug.stuf.mapprepare(M)
         execute 'silent! iunmap <special> <buffer> '.curch
-        if has_key(a:bufdict.exmaps, M)
-            execute a:bufdict.exmaps[M][0].' <special> <buffer> '.curch.' '.
-                        \s:F.plug.stuf.mapprepare(a:bufdict.exmaps[M][1])
+        " Если привязка локально, то ничего восстанавливать не надо
+        if has_key(a:bufdict.exmaps, M) && !a:bufdict.exmaps[M].buffer==1
+            let exmap=a:bufdict.exmaps[M]
+            execute  "i".((exmap.noremap)?("nore"):     (""))."map <special> ".
+                        \((exmap.buffer)? ("<buffer> "):("")).
+                        \((exmap.silent)? ("<silent> "):("")).
+                        \((exmap.expr)?   ("<expr> "):  ("")).
+                        \curch." ".
+                        \substitute(exmap.rhs, '<SID>', '<SNR>'.exmap.sid.'_',
+                        \           'g')
         endif
     endfor
     return 1
