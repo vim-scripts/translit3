@@ -929,7 +929,7 @@ let s:g.tof={
             \"initvars": { "notrans": 0, "notransword": 0, "ntword": "",
             \              "ntwline": 0, },
             \"mutable": {"bufdicts":{}},
-            \"bs": "\<C-\>\<C-o>ch",
+            \"bs": "\ecl",
         \}
 "{{{3 tof.*_w: Поддержка нестандартных способов ввода
 function s:F.tof.conque_w(str)
@@ -1221,9 +1221,6 @@ function s:F.tof.map(bufdict, char)
         let exmap=maparg(a:char, "i", 0, 1)
     else
         let exmap=maparg(a:char, "i")
-        if empty(exmap) && hasmapto(a:char)
-            let exmap="<Nop>"
-        endif
     endif
     if !empty(exmap)
         if hasdictmap
