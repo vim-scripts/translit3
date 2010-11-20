@@ -18,8 +18,8 @@ Features:
 
 This plugin also provides Russian documentation. Add «ru» to option «helplang» in order to use it.
 
-Documentation: http://kp-pav.narod2.ru/vim/doc/translit3.txt.html
-Russian documentation: http://kp-pav.narod2.ru/vim/doc/translit3.rux.html
+Documentation: http://vimpluginloader.sourceforge.net/doc/translit3.txt.html
+Russian documentation: http://vimpluginloader.sourceforge.net/doc/translit3.rux.html
 Project page: http://sourceforge.net/projects/translit3
 Dependencies (you do not need to install them by yourself, see installation details):
 vimscript #3184, http://sourceforge.net/projects/vimpluginloader
