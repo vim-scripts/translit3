@@ -239,9 +239,7 @@ TranslitReplace                                *tr3-mapping-TranslitReplace*
                 перед этим транслитерирует аргумент (то есть, если набрать 
                 «\tr<=>» достаточно быстро, то символ под курсором будет 
                 заменён на «⇔»). Note привязка использует значение 
-                'timeoutlen' если включена настройка 'timeout'. Note привязка 
-                работает корректно только если результат транслитерации имеет 
-                длину, равную одному символу.
+                'timeoutlen' если включена настройка 'timeout'.
                 Все следующие привязки работают аналогично TranslitReplace:
 TranslitNext                                       *tr3-mapping-TranslitNext*
 TranslitPrev                                       *tr3-mapping-TranslitPrev*

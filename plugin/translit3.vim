@@ -2338,6 +2338,9 @@ function s:F.map.getchar(transsymb)
     while ((timeout>0)?(eval(reltimestr(reltime(time)))<timeout):(1)) &&
                 \len(bufdict.curtrans)>oldbclen
         if getchar(1)
+            if oldbclen==1
+                let oldbclen=2
+            endif
             let char=getchar()
             if type(char)==type(0)
                 let char=nr2char(char)
@@ -2359,7 +2362,68 @@ function s:F.map.getchar(transsymb)
 endfunction
 "{{{3 map.doonchar
 function s:F.map.doonchar(command, transsymb)
-    return a:command.join(s:F.map.getchar(a:transsymb), "")
+    let result=s:F.map.getchar(a:transsymb)
+    if a:command==#'r'
+        return 's'.result[0]."\e".result[1]
+    else
+        if result[0]=~#'^.$'
+            return a:command.result[0].result[1]
+        else
+            let line=getline('.')
+            let l:count=v:count1
+            let col=col('.')-1
+            let vcol=virtcol('.')
+            if a:command==#'f' || a:command==#'t'
+                while l:count && col!=-1
+                    let col=stridx(line, result[0], col+1)
+                    let l:count-=1
+                endwhile
+                if col!=-1
+                    let vcol=virtcol([line('.'), col+1])
+                    if a:command==#'t'
+                        let vcol-=1
+                    endif
+                endif
+            elseif a:command==#'F' || a:command==#'T'
+                let line=line[:col]
+                if a:command==#'F'
+                    let line=substitute(line, '.$', '', '')
+                endif
+                let lres=len(result[0])
+                let mcol=len(line)-1-lres
+                while mcol>0
+                    let col=stridx(line, result[0], mcol)
+                    if col!=-1
+                        let l:count-=1
+                        if !l:count
+                            break
+                        endif
+                        let line=line[:col]
+                    endif
+                    let mcol-=lres
+                    if mcol<0
+                        let mcol=0
+                    endif
+                endwhile
+                if col!=-1
+                    if a:command==#'T'
+                        let vcol=virtcol([line('.'), col+1+lres])
+                    else
+                        let vcol=virtcol([line('.'), col+1])
+                    endif
+                endif
+            endif
+            if col==-1
+                return result[1]
+            endif
+            " First bar is used only to discard count:
+            " 2,tta will turn into 2{vcol}|а, so if {vcol}=10, you will try to 
+            " move to 210'th virtual column instead of 10'th. Here I will move 
+            " twice, but this fact can be ignored
+            return '|'.vcol.'|'.result[1]
+        endif
+    endif
+    return a:command.join(result, "")
 endfunction
 "{{{3 map.runmap
 function s:F.map.runmap(type, mapname, mapstring, buffer)

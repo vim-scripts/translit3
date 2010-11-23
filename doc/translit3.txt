@@ -213,9 +213,7 @@ TranslitReplace                                *tr3-mapping-TranslitReplace*
                 Default: <_leader>r. Same as |r|, but transliterates its 
                 argument (so, “\tr<=>” typed fast enough will replace the 
                 symbol under the cursor with “⇔”). Note that this mapping 
-                respects 'timeout' and 'timeoutlen' options. Note: it will not 
-                work correctly if transliteration result is longer then one 
-                character.
+                respects 'timeout' and 'timeoutlen' options.
                 The following mappings work like TranslitReplace:
 TranslitNext                                       *tr3-mapping-TranslitNext*
 TranslitPrev                                       *tr3-mapping-TranslitPrev*

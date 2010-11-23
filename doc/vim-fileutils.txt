@@ -22,7 +22,8 @@ autoload/*.vim files. It does not provide any commands.
 2.1. Functions                                       *vim-fileutils-functions*
 
 fileutils#GetDirContents({directory})               *fileutils#GetDirContents*
-    Returns a list of files found in given directory.
+    Returns a list of files found in given directory. Note that if {directory} 
+    is an empty string, then it acts like if it was current directory.
 os#Exec({cmd}[, {cwd}])                                              *os#Exec*
     Execute command {cmd} in directory {cwd} (uses current directory if {cwd} 
     is not specified). {cmd} must be a list of Strings with at least one item. 
