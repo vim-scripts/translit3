@@ -2379,10 +2379,11 @@ function s:F.map.doonchar(command, transsymb)
                     let l:count-=1
                 endwhile
                 if col!=-1
-                    let vcol=virtcol([line('.'), col+1])
-                    if a:command==#'t'
-                        let vcol-=1
+                    if a:command==#'f'
+                        let col+=len(result[0])
                     endif
+                    let vcol=virtcol([line('.'), col+1])
+                    let vcol-=1
                 endif
             elseif a:command==#'F' || a:command==#'T'
                 let line=line[:col]
