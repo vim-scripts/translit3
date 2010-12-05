@@ -935,7 +935,12 @@ let s:g.tof={
 function s:F.tof.conque_w(str)
     if exists('b:ConqueTerm_Var')
         let lbs=len(s:g.tof.bs)
-        let str=a:str
+        let str=""
+        if type(a:str)==type("")
+            let str=a:str
+        else
+            let str=a:str.lhs
+        endif
         let start=""
         while str[0:(lbs-1)]==#s:g.tof.bs
             let start.="\<C-h>"
@@ -1042,17 +1047,25 @@ endfunction
 function s:F.tof.getuntrans(bufdict, char)
     if has_key(a:bufdict.exmaps, a:char)
         let exmap=a:bufdict.exmaps[a:char]
-        " Не парим себе мозги относительно того, что надо вернуть, чтобы 
-        " привязка работала как будто транслитерация по мере ввода не запущена
-        execute  "i".((exmap.noremap)?("nore"):     (""))."map <special> ".
-                    \"<buffer> ".
-                    \((exmap.silent)? ("<silent> "):("")).
-                    \((exmap.expr)?   ("<expr> "):  ("")).
-                    \"<Plug>Translit3TempMap ".
-                    \substitute(exmap.rhs, '<SID>', '<SNR>'.exmap.sid.'_', 'g')
-        " По непонятной причине feedkeys непосредственно в скрипте не работает, 
-        " поэтому используется следующий хак
-        return "\<C-\>\<C-o>:call feedkeys(\"\\<Plug>Translit3TempMap\")\<CR>"
+        if type(a:bufdict.writefunc)==type(0)
+            " Не парим себе мозги относительно того, что надо вернуть, чтобы 
+            " привязка работала как будто транслитерация по мере ввода не 
+            " запущена
+            execute  "i".((exmap.noremap)?("nore"):     (""))."map <special> ".
+                        \"<buffer> ".
+                        \((exmap.silent)? ("<silent> "):("")).
+                        \((exmap.expr)?   ("<expr> "):  ("")).
+                        \"<Plug>Translit3TempMap ".
+                        \substitute(exmap.rhs, '<SID>', '<SNR>'.exmap.sid.'_',
+                        \           'g')
+            " По непонятной причине feedkeys непосредственно в скрипте не 
+            " работает, поэтому используется следующий хак
+            return "\<C-\>\<C-o>:call feedkeys(\"\\<Plug>Translit3TempMap\")\n"
+        else
+            " Если WriteFunc определена, то она должна также и заботиться 
+            " о старых привязках
+            return exmap
+        endif
     endif
     return a:char
 endfunction
@@ -1250,8 +1263,10 @@ function s:F.tof.map(bufdict, char)
     let charexpr='call(<SID>Eval("s:F.tof.transchar"), '.
                 \     '[<SID>Eval("s:g.tof.mutable.bufdicts['.
                 \               (a:bufdict.bufnr).']"),'.
-                \      '"'.substitute(escape(a:char, '>|"\'),
-                \                     "\n", '\\n', 'g').'"], {})'
+                \      '"'.substitute(
+                \           substitute(escape(a:char, '>|"\'),
+                \                     "\n", '\\n', 'g'),
+                \           "\r", '\\r', 'g').'"], {})'
     if type(a:bufdict.writefunc)==type(0)
         execute 'inoremap <special> <expr> <buffer> '.char.' '.charexpr
     else

@@ -127,8 +127,9 @@ arguments list. Default value: '\(\\\@<!\(\\.\)*\\\)\@<! ' (splits on
 non-escaped spaces). Note that for insert-mode completion `start' has an 
 advantage over `argsplitregex', so the last word is determined by it and won't 
 be split. Key `escape' determines, whether completion list will be escaped by 
-|fnameescape()| function. Default value: true for normal (command-line) 
-models, false for input and insert models.
+|fnameescape()| function (2), using |escape()| with `\\|\" \n' as a second 
+argument (1) or not escaped at all (0). Default value: 1 for normal 
+(command-line) models, 0 for input and insert models.
 
 ==============================================================================
 4. Argument descriptions                              *comp-listdescription*

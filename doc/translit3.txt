@@ -287,9 +287,12 @@ WriteFunc     Name of the function that will be used to write characters in
               an expression that returns result of transliteration. If this 
               option is set and is not null, then it will produce >
                   inoremap <buffer> {c} <C-\><C-o>:call call({WF}, [{str}], {})
-<             where {WF} is a write function name. Instead of specifing 
-              existing function, you may use one of predefined functions. Here 
-              is the list with their descriptions:
+<             where {WF} is a write function name. Note that function may get 
+              a dictionary which describes a mapping like described in 
+              |tr3-tof-bufdict-exmaps| which must be used instead of {str}.
+              Instead of specifing existing function, you may use one of 
+              predefined functions. Here is the list with their 
+              descriptions:
               WriteFunc   Description ~
               @conque     This function adds support for Conque Shell plugin. 
                           You should use it only in conque terminals.
@@ -466,22 +469,25 @@ Plugin function must take exactly two arguments: buffer dictionary and string
 typed by user.
 Buffer dictionary:                                         *tr3-tof-bufdict*
 Key           Value ~
+                                                  *tr3-tof-bufdict-transsymb*
 transsymb     Transliteration table. See |tr3-transsymb-int| for details.
+                                                   *tr3-tof-bufdict-curtrans*
 curtrans      List of transliteration tables. In most cases it will be
               a list of one element: bufdict.transsymb.
+                                                   *tr3-tof-bufdict-curtrseq*
 curtrseq      Last transliteration result. It is used for creating a
               sequence of <BS>.
+                                                      *tr3-tof-bufdict-flags*
 flags         Flags. Flag list is similar to {flags} argument of
               |tr3-trs-plug-func|, but without “transbeg” flag. Instead of 
               using “transbeg”, check for bufdict.curtrans length.
+                                                   *tr3-tof-bufdict-lastline*
 lastline      Last line number. Used to determine whether user moved cursor
               to another location. May be equal to -2.
+                                                      *tr3-tof-bufdict-bufnr*
 bufnr         Number of the buffer current dictionary is connected to. Do
               not edit.
-exmaps        Dictionary, where keys are {lhs} of mappings defined by 
-              current input transliteration session and values are pairs 
-              [{command}, {oldrhs}], where {command} is either “imap” or 
-              “inoremap”. It is used to recreate old mappings.
+                                                     *tr3-tof-bufdict-exmaps*
 exmaps        Dictionary, where keys are {lhs} of mappings defined by 
               current input transliteration session and values are 
               dictionaries with the following keys (see |maparg()| if you have 
@@ -500,10 +506,14 @@ exmaps        Dictionary, where keys are {lhs} of mappings defined by
               sid      The script local ID. Always equal to 0 for vim versions 
                        older then 7.3.32 (but here <SID> will be expanded by 
                        |maparg()|).
+                                                       *tr3-tof-bufdict-vars*
 vars          Variables created by plugins. Is emptied when transliteration
               fails. Do not change other plugins’ variables.
+                                                      *tr3-tof-bufdict-plugs*
 plugs         Plugin list. Do not edit.
+                                                   *tr3-tof-bufdict-curplugs*
 curplugs      Current plugins list. You should avoid changing it.
+                                                      *tr3-tof-bufdict-chars*
 chars         List of symbols which invoke transliteration function. Do not
               edit.
 

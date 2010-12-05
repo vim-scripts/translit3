@@ -1,10 +1,10 @@
 *vim-fileutils.txt* Cross-platform file manipulation library
 ==============================================================================
 CONTENTS                                              *vim-fileutils-contents*
-    1. Intro                                     *vim-fileutils-intro*
-    2. Functionality provided                    *vim-fileutils-functionality*
-        2.1. Functions                           *vim-fileutils-functions*
-        2.2. Variables                           *vim-fileutils-variables*
+    1. Intro                                     |vim-fileutils-intro|
+    2. Functionality provided                    |vim-fileutils-functionality|
+        2.1. Functions                           |vim-fileutils-functions|
+        2.2. Variables                           |vim-fileutils-variables|
 
 ==============================================================================
 1. Intro                                                 *vim-fileutils-intro*
