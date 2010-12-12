@@ -155,7 +155,7 @@ endfunction
 function s:F.mod.simple(comp, s)
     if has_key(a:comp, "arguments")
         let lsarg=len(a:s.arguments)
-        if lsarg<=len(a:comp.arguments)
+        if lsarg && lsarg<=len(a:comp.arguments)
             return s:F.comp.getlist(a:comp.arguments[lsarg-1],
                         \           a:s.arguments[-1])
         endif
@@ -177,6 +177,14 @@ function s:F.mod.pref(comp, s)
     if has_key(a:comp, "prefix")
         if !(larg%2)
             let pref=a:s.arguments[-2]
+            if !has_key(a:comp.prefix, pref)
+                let lenp=len(pref)-1
+                for p in keys(a:comp.prefix)
+                    if p[:lenp]==?pref
+                        let pref=p
+                    endif
+                endfor
+            endif
             if has_key(a:comp.prefix, pref)
                 return s:F.comp.getlist(a:comp.prefix[pref],
                             \           a:s.arguments[-1])

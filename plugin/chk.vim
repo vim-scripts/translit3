@@ -931,6 +931,8 @@ function s:F.achk.optlst(chk, Arg)
     let selfname="achk.optlst"
     if type(a:Arg)!=type([])
         return s:F.main.eerror(selfname, "value", ["list"])
+    elseif len(a:chk)<2
+        return s:F.main.eerror(selfname, "check", ["<len", 2, len(a:chk)])
     elseif len(a:Arg)<len(a:chk[0])
         return s:F.main.eerror(selfname, "value", ["<len", len(a:chk[0]),
                     \                              len(a:Arg)])

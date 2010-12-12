@@ -180,7 +180,7 @@ function s:F.cons.eerror(plugin, from, type, ...)
     let msg=(a:plugin.type.'/'.a:plugin.name)."/".
                 \s:F.stuf.string(a:from).":".(etype).(comm)
     echohl ErrorMsg
-    echo msg
+    echomsg msg
     echohl None
     if dothrow
         throw msg
@@ -892,8 +892,8 @@ let s:g.c.register=["and", [
             \                                          [s:g.c.plugtype]]]]
             \   ],
             \   [["equal", "preload"], ["alllst", ["optlst",
-            \                                      [["type", type("")]],
-            \                                      [s:g.c.plugtype]]]],
+            \                                      [[["type", type("")]],
+            \                                       [s:g.c.plugtype]]]]],
             \   [["equal", "leader"],     ["type", type("")]],
             \   [["any", ''], ["any", '']],
             \ ]
@@ -1958,7 +1958,7 @@ endfunction
 function s:F.comp.nrof(arglead)
     let s=split(a:arglead, '/')
     if len(s)<=1 && a:arglead[-1:]!=#'/'
-        return map(keys(s:g.reg.registered), '"/".v:val."/"')
+        return map(s:F.comp.plug(a:arglead), '"/".v:val."/"')
     elseif len(s)==2 && a:arglead[-1:]!=#'/' &&
                 \has_key(s:g.reg.registered, s[0])
         return map(keys(s:g.reg.registered[s[0]]), '"/'.s[0].'/".v:val."/"')

@@ -939,7 +939,7 @@ function s:F.tof.conque_w(str)
         if type(a:str)==type("")
             let str=a:str
         else
-            let str=a:str.lhs
+            let str=eval('"'.escape(a:str.lhs, '"<').'"')
         endif
         let start=""
         while str[0:(lbs-1)]==#s:g.tof.bs

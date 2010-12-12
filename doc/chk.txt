@@ -99,9 +99,9 @@ equal       a (everything)
 var         String (either empty or contains comma-delimited variable type
                     names: buffer, window, tabpage, global, vim, option, any)
             Checks, whether {argument} is a variable name, this 
-            variable exists and has specified type. (`option' variable names must 
-            start with `&', others with `b:', `w:', `t:', `g:' or `v:' for 
-            buffer, window, tabpage, global or vim responsively. See 
+            variable exists and has specified type. (`option' variable names 
+            must start with `&', others with `b:', `w:', `t:', `g:' or `v:' 
+            for buffer, window, tabpage, global or vim responsively. See 
             |internal-variables| for details.)
                                                              *chk-check-any*
 any         _ (argument is ignored)
