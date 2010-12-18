@@ -672,10 +672,7 @@ function s:F.reg.register(regdict)
     endif
     "}}}5
     if !(plugtype==#'plugin' && (plugname==#"chk" || plugname==#"load"))
-        if !has_key(s:F.plug, "chk")
-            let s:F.plug.chk=s:F.comm.getfunctions("chk", "plugin",
-                        \                          "dictfunctions")
-        endif
+        call s:F.comm.load("chk", "plugin")
         if !s:F.main.option("DisableLoadChecks") &&
                     \!s:F.plug.chk.checkargument(s:g.c.register, a:regdict)
             return s:F.main.eerror(selfname, "value", 1, ["ireg"])
@@ -2039,6 +2036,7 @@ unlet s:g.load
 let s:F.plug.comp=s:F.comm.lazyload("comp", "plugin", "dictfunctions")
 let s:F.plug.stuf=s:F.comm.lazyload("stuf", "plugin", "dictfunctions")
 let s:F.plug.yaml=s:F.comm.lazyload("yaml", "plugin", "dictfunctions")
+let s:F.plug.chk =s:F.comm.lazyload("chk",  "plugin", "dictfunctions")
 lockvar! s:F
 unlockvar s:F.plug
 unlockvar s:F.comp
