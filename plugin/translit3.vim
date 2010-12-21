@@ -46,6 +46,7 @@ elseif !exists("s:g.pluginloaded")
                 \"ConfigDir": fnamemodify(s:g.load.scriptfile, ':h:h').
                 \               "/config/translit3",
                 \"WriteFunc": 0,
+                \"BreakFunc": 0,
             \}
     "{{{3 Команды и функции
     let s:g.load.commands={
@@ -105,7 +106,7 @@ elseif !exists("s:g.pluginloaded")
                 \     "mappings": s:g.load.mappings,
                 \     "commands": s:g.load.commands,
                 \    "functions": s:g.ExtFunc,
-                \   "apiversion": "0.1",
+                \   "apiversion": "0.2",
                 \       "leader": '\t',
                 \     "requires": [["stuf", '0.4'],
                 \                  ["comp", '0.2'],
@@ -933,30 +934,33 @@ let s:g.tof={
         \}
 "{{{3 tof.*_w: Поддержка нестандартных способов ввода
 function s:F.tof.conque_w(str)
-    if exists('b:ConqueTerm_Var')
+    let str=""
+    if type(a:str)==type("")
+        let str=a:str
+    else
+        let str=eval('"'.escape(a:str.lhs, '"<').'"')
+    endif
+    if &filetype==#'conque_term'
         let lbs=len(s:g.tof.bs)
-        let str=""
-        if type(a:str)==type("")
-            let str=a:str
-        else
-            let str=eval('"'.escape(a:str.lhs, '"<').'"')
-        endif
         let start=""
         while str[0:(lbs-1)]==#s:g.tof.bs
             let start.="\<C-h>"
             let str=str[(lbs):]
         endwhile
         let str=start.str
-        execute 'python '.b:ConqueTerm_Var.'.write(vim.eval("str"))'
+        call conque_term#get_instance().write(str)
     else
-        call 'normal! i'.a:str
+        call 'normal! i'.str
     endif
 endfunction
 "{{{3 tof.plug: плагины для транслитерации по мере ввода
 "{{{4 tof.plug.notrans: временно прервать транслитерацию
 function s:F.tof.plug.notrans(bufdict, char)
     if a:bufdict.vars.notrans
-        if has_key(a:bufdict.opts.StartTrSymbs.value, a:char)
+        if ((a:bufdict.vars.notrans==2)?
+                    \   (s:F.tof.insyn('.', '.', 'comment')):
+                    \   (1)) &&
+                    \has_key(a:bufdict.opts.StartTrSymbs.value, a:char)
             let a:bufdict.vars.notrans=0
             return      {"status": "stopped",
                         \"result": a:bufdict.opts.StartTrSymbs.value[a:char]}
@@ -966,6 +970,14 @@ function s:F.tof.plug.notrans(bufdict, char)
     endif
     if has_key(a:bufdict.opts.StopTrSymbs.value, a:char)
         let a:bufdict.vars.notrans=1
+        for [l:Func, l:Dummy] in a:bufdict.plugs
+            if l:Func==s:F.tof.plug.comm
+                let a:bufdict.vars.notrans=2
+                break
+            elseif l:Func==s:F.tof.plug.notrans
+                break
+            endif
+        endfor
         return      {"status": "started",
                     \"result": a:bufdict.opts.StopTrSymbs.value[a:char]}
     endif
@@ -979,29 +991,9 @@ function s:F.tof.plug.brk(bufdict, char)
 endfunction
 "{{{4 tof.plug.comm: Транслитерировать только внутри комментария
 function s:F.tof.plug.comm(bufdict, char)
-    " synstack cannot work if line is empty
-    if col('$')==1
-        let stack=[synID(line('.'), 1, 0)]
-    else
-        let col=col('.')
-        if col>=col('$')
-            let col=col('$')-1
-        endif
-        try
-            let stack=synstack(line('.'), col)
-            if type(stack)!=type([])
-                unlet stack
-                let stack=[synID(line('.'), 1, 0)]
-            endif
-        catch
-            let stack=[synID(line('.'), 1, 0)]
-        endtry
+    if s:F.tof.insyn('.', '.', 'comment')
+        return s:g.tof.failresult
     endif
-    while !empty(stack)
-        if synIDattr(remove(stack, -1), "name")=~?"comment"
-            return s:g.tof.failresult
-        endif
-    endwhile
     return      {"status": "success",
                 \"result": s:F.tof.getuntrans(a:bufdict, a:char)}
 endfunction
@@ -1032,6 +1024,35 @@ function s:F.tof.plug.notransword(bufdict, char)
                     \"result": a:bufdict.opts.NoTransWord.value[a:char]}
     endif
     return s:g.tof.failresult
+endfunction
+"{{{3 tof.insyn
+function s:F.tof.insyn(line, col, reg)
+    let line=line(a:line)
+    let col=col(a:col)
+    let stack=[]
+    " synstack cannot work if line is empty
+    if col([line, '$'])==1
+        call add(stack, synID(line, 1, 0))
+    else
+        let lastcol=col([line, '$'])
+        if col>=lastcol
+            let col=lastcol-1
+        endif
+        try
+            " It will emit type error if synstack will return something other 
+            " then a list
+            let stack=synstack(line, col)
+            " But it may emit other error as well
+        catch
+            call add(stack, synID(line, 1, 0))
+        endtry
+    endif
+    while !empty(stack)
+        if synIDattr(remove(stack, -1), "name")=~?a:reg
+            return 1
+        endif
+    endwhile
+    return 0
 endfunction
 "{{{3 tof.plugrun: запустить плагин
 function s:F.tof.plugrun(bufdict, char, plug, idx)
@@ -1068,6 +1089,26 @@ function s:F.tof.getuntrans(bufdict, char)
         endif
     endif
     return a:char
+endfunction
+"{{{3 tof.testbreak: определить, надо ли завершать последовательность
+function s:F.tof.testbreak(bufdict, char)
+    let [curline, curcol]=getpos('.')[1:2]
+    if a:bufdict.lastline!=curline && a:bufdict.lastline!=curline-1
+        return 1
+    endif
+    let curlinestr=""
+    if curcol==col('$')
+        let curlinestr=getline(curline)
+    else
+        let curlinestr=substitute(getline(curline)[:(curcol-1)], '.$', '', '')
+    endif
+    if curlinestr[(-len(a:bufdict.curtrseq)):]==#a:bufdict.curtrseq
+        return 0
+    endif
+    return 1
+endfunction
+function s:F.tof.testbreakdummy(...)
+    return 0
 endfunction
 "{{{3 tof.transchar: обработать полученный символ
 function s:F.tof.transchar(bufdict, char)
@@ -1113,16 +1154,14 @@ function s:F.tof.transchar(bufdict, char)
     "{{{5 Объявление переменных
     let isupper=(lower!=#a:char)
     let [curline, curcol]=getpos('.')[1:2]
-    let curlinestr=getline(curline)
-    if curcol<=len(curlinestr)
-        let curlinestr=substitute(curlinestr, '\%'.curcol.'c.*', '', '')
+    let curlinestr=""
+    if curcol==col('$')
+        let curlinestr=getline(curline)
+    else
+        let curlinestr=substitute(getline(curline)[:(curcol-1)], '.$', '', '')
     endif
     "{{{5 Прерывание последовательности
-    if a:bufdict.bufnr!=0 && len(a:bufdict.curtrans)>1 &&
-                \((a:bufdict.lastline!=curline &&
-                \  a:bufdict.lastline != curline-1) ||
-                \ curlinestr!~#s:F.plug.stuf.regescape(a:bufdict.curtrseq).'$'||
-                \
+    if len(a:bufdict.curtrans)>1 && (a:bufdict.testbreak(a:bufdict, a:char) ||
                 \ (isupper && a:bufdict.flags.upper==0 &&
                 \  !(has_key(a:bufdict.curtrans[-1], lower) &&
                 \    type(a:bufdict.curtrans[-1][lower][1])==type({}))))
@@ -1389,12 +1428,13 @@ function s:F.tof.makemaps(bufdict)
         let a:bufdict.originplugs=plugs
     endif
     call map(copy(plugs), 's:F.tof.addplugin(a:bufdict, v:val)')
+    "{{{4 Создание привязок
+    call map(copy(a:bufdict.chlist), 's:F.tof.map(a:bufdict, v:val)')
     "{{{4 Блокировка
     lockvar! a:bufdict.chlist
     lockvar! a:bufdict.opts
     lockvar! a:bufdict.plugs
-    "{{{4 Создание привязок
-    call map(copy(a:bufdict.chlist), 's:F.tof.map(a:bufdict, v:val)')
+    lockvar! a:bufdict.exmaps
     "{{{4 Обратный переход
     if curbuf!=a:bufdict.bufnr
         execute "buffer ".curbuf
@@ -1427,11 +1467,17 @@ function s:F.tof.setup(buffer, transsymb, ...)
                     \   "chlist": [],
                     \     "opts": {},
                     \"originplugs": [],
+                    \"testbreak": s:F.main.option("BreakFunc"),
                 \}
-        if has_key(s:g.tof.rewritefunc, bufdict.writefunc)
+        if type(bufdict.writefunc)==type("") &&
+                    \has_key(s:g.tof.rewritefunc, bufdict.writefunc)
             let bufdict.writefunc=s:g.tof.rewritefunc[bufdict.writefunc]
         elseif type(bufdict.writefunc)!=type(0)
             let bufdict.writefunc="'".bufdict.writefunc."'"
+        endif
+        if type(bufdict.testbreak)==type(0)
+            let bufdict.testbreak=
+                        \s:F.tof["testbreak".((bufdict.bufnr)?(""):("dummy"))]
         endif
     else
         let bufdict=a:000[0]
@@ -1444,6 +1490,8 @@ function s:F.tof.setup(buffer, transsymb, ...)
         unlet bufdict.bufname
     endif
     lockvar! bufdict.bufnr
+    lockvar! bufdict.writefunc
+    lockvar! bufdict.testbreak
     lockvar 1 bufdict
     if bufdict.bufnr!=0
         let s:g.tof.mutable.bufdicts[bufdict.bufnr]=bufdict
@@ -2184,6 +2232,8 @@ call extend(s:g.c.options, {
             \                     ["keyof", s:g.tof.rewritefunc],
             \                     ["and", [["type", type("")],
             \                              ["isfunc", 1]]]]],
+            \"BreakFunc": ["or", [["equal", 0],
+            \                     ["isfunc", 0]]],
         \})
 "{{{3 Автодополнение строки ввода
 let s:g.comp.inputwords={}
@@ -2335,38 +2385,34 @@ function s:F.map.lrset(transsymb, patlist)
 endfunction
 "{{{3 map.getchar
 function s:F.map.getchar(transsymb)
-    let char=getchar()
-    if type(char)==type(0)
-        let char=nr2char(char)
-    endif
     if &timeout
         let timeout=&timeoutlen/1000.0
     else
         let timeout=-1
     endif
     let bufdict=s:F.tof.setup(0, a:transsymb)
-    let oldbclen=1
-    let result=s:F.tof.transchar(bufdict, char)
-    let bufdict.curtrseq=""
+    let oldbclen=0
+    let result=""
     let time=reltime()
     let addchar=""
-    while ((timeout>0)?(eval(reltimestr(reltime(time)))<timeout):(1)) &&
-                \len(bufdict.curtrans)>oldbclen
-        if getchar(1)
-            if oldbclen==1
-                let oldbclen=2
-            endif
+    while ((timeout>0)?(eval(reltimestr(reltime(time)))<timeout):(1))
+        if !oldbclen || getchar(1)
             let char=getchar()
             if type(char)==type(0)
                 let char=nr2char(char)
             endif
             let newresult=s:F.tof.transchar(bufdict, char)
-            if len(bufdict.curtrans)<=oldbclen
+            call add(g:debug, deepcopy(bufdict))
+            let bclen=len(bufdict.curtrans)
+            if bclen<=oldbclen
                 let addchar=char
                 break
             endif
             let bufdict.curtrseq=""
             let result=newresult
+            if !oldbclen
+                let oldbclen=1
+            endif
             let oldbclen+=1
             let time=reltime()
         else

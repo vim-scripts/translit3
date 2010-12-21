@@ -296,6 +296,14 @@ WriteFunc     Name of the function that will be used to write characters in
               WriteFunc   Description ~
               @conque     This function adds support for Conque Shell plugin. 
                           You should use it only in conque terminals.
+                                                       *tr3-option-BreakFunc*
+BreakFunc     Reference to a function that determines whether transliteration 
+              sequence was broken. Default value (0) makes plugin use built-in 
+              function which breaks transliteration sequence if cursor has 
+              moved at least one line up or two lines down since last input or 
+              if current line end does not match last transliteration result. 
+              Function must take a buffer dictionary (which is described in 
+              |tr3-tof-bufdict|) and a character and return 0 or 1.
                                                        *tr3-option-DoNotLoad*
 DoNotLoad     If this key is found in dictionary g:tr3Options and this plugin
               is not loaded yet then plugin loading is prevented.
@@ -510,9 +518,16 @@ exmaps        Dictionary, where keys are {lhs} of mappings defined by
 vars          Variables created by plugins. Is emptied when transliteration
               fails. Do not change other plugins’ variables.
                                                       *tr3-tof-bufdict-plugs*
-plugs         Plugin list. Do not edit.
+plugs         Plugin list (normalized list where all plugin names were 
+              replaced with function references). Do not edit.
+                                                *tr3-tof-bufdict-originplugs*
+originplugs   Plugin list (effective value of |tr3-option-ToFPlugs|).
+              Do not edit.
                                                    *tr3-tof-bufdict-curplugs*
 curplugs      Current plugins list. You should avoid changing it.
+                                                  *tr3-tof-bufdict-testbreak*
+testbreak     Reference to |tr3-option-BreakFunc| function. You should avoid 
+              changing it.
                                                       *tr3-tof-bufdict-chars*
 chars         List of symbols which invoke transliteration function. Do not
               edit.
