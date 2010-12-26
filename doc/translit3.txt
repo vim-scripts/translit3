@@ -235,19 +235,25 @@ Key           Description ~
                                                           *tr3-option-BrkSeq*
 BrkSeq        A string; sequence which breaks transliteration.
               Is used by plugins |tr3-trs-plug-brk| and |tr3-tof-plug-brk|.
+              Setting this option to empty string effectively disables these 
+              plugins.
               Default value: '@'.
                                                           *tr3-option-EscSeq*
 EscSeq        A string; sequence that escapes next symbol.
               Is used by plugins |tr3-trs-plug-esc| and 
               |tr3-trs-plug-notrans|.
+              Setting this option to empty string effectively disables 
+              escaping.
               Default value: '\'.
                                                      *tr3-option-StopTrSymbs*
 StopTrSymbs   Dictionary with string values. Keys of this dictionary are used
               as sequences that pause transliteration: after one of this 
               sequence occurs it stops transliteration and is replaced by 
               respective value.
-              Is used by plugins |tr3-trs-plug-notrans|and 
+              Is used by plugins |tr3-trs-plug-notrans| and 
               |tr3-tof-plug-notrans|.
+              Setting this option to an empty dictionary effectively disables 
+              these plugins.
               Default value: {'%': ''}
                                                     *tr3-option-StartTrSymbs*
 StartTrSymbs  Dictionary with string values. Keys of this dictionary are used
@@ -262,6 +268,8 @@ NoTransWord   Dictionary with string values. Keys of this dictionary are used
               to escape the next WORD: after one of keys occurs it escapes the 
               next WORD and is replaced by respective value.
               Is used by plugin |tr3-trs-plug-notransword|.
+              Setting this option to an empty dictionary effectively disables 
+              this plugin.
               Default value: {'%%': ''}
 DefaultTranssymb                                *tr3-option-DefaultTranssymb*
               Default transliteration table. See |tr3-transsymb-arg|.

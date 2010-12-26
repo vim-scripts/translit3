@@ -671,24 +671,39 @@ endfunction
 function s:F.trs.plug.notrans(match, str, transsymb, cache, flags)
     let  result=a:cache.StopTrSymbs.value[a:match]
     let ntrstr=""
-    let delta=0
-    let slen=len(a:str)
     let startstr=""
-    while delta<slen
-        let ntr=matchlist(a:str,
-                    \'^\(\_.\{-}\)\C\(\('.a:cache.EscSeq.regex.'\)*\)\@>'.
-                    \'\('.(a:cache.StartTrSymbs.regex).'\|\%$\)', delta)
-        let esccount=len(ntr[2])/a:cache.EscSeq.len
+    let delta=0
+    let escreg=a:cache.EscSeq.regex
+    let startreg=a:cache.StartTrSymbs.regex
+    if !empty(startreg)
+        let startreg.='\|\%$'
+    else
+        let startreg='\%$'
+    endif
+    if empty(escreg)
+        let ntr=matchlist(a:str, '^\(\_.\{-}\)\C\('.startreg.'\)')
         let delta+=len(ntr[0])
-        if esccount%2==0
-            let ntrstr.=ntr[1].ntr[2]
-            let startstr=ntr[4]
-            break
-        endif
-        let ntrstr.=ntr[0]
-    endwhile
-    let ntrstr=substitute(ntrstr, a:cache.EscSeq.regex.'\(.\)', '\1', 'g')
-    if len(startstr)
+        let ntrstr=ntr[1]
+        let startstr=ntr[2]
+    else
+        let slen=len(a:str)
+        let startstr=""
+        while delta<slen
+            let ntr=matchlist(a:str,
+                        \'^\(\_.\{-}\)\C\(\%('.escreg.'\)*\)\@>'.
+                        \'\('.startreg.'\)', delta)
+            let esccount=len(ntr[2])/a:cache.EscSeq.len
+            let delta+=len(ntr[0])
+            if esccount%2==0
+                let ntrstr.=ntr[1].ntr[2]
+                let startstr=ntr[3]
+                break
+            endif
+            let ntrstr.=ntr[0]
+        endwhile
+        let ntrstr=substitute(ntrstr, escreg.'\(.\)', '\1', 'g')
+    endif
+    if !empty(startstr)
         let ntrstr.=a:cache.StartTrSymbs.value[startstr]
     endif
     return {
@@ -712,9 +727,9 @@ function s:F.trs.plug.brk(match, str, transsymb, cache, flags)
 endfunction
 "{{{3 trs.plugrun: запуск дополнений
 function s:F.trs.plugrun(plug, str, transsymb, cache, flags)
-    let matchidx=match(a:str, '^\C\('.(a:plug[1]).'\)')
+    let matchidx=match(a:str, '^\C\%('.(a:plug[1]).'\)')
     if matchidx==0
-        let match=matchstr(a:str, '^\C\('.(a:plug[1]).'\)')
+        let match=matchstr(a:str, '^\C\%('.(a:plug[1]).'\)')
         let lastret=call(a:plug[0], [match, a:str[len(match):], a:transsymb,
                     \a:cache, a:flags], {})
         let lastret.delta+=len(match)
@@ -860,8 +875,11 @@ let s:g.trs.plugregex={
 "}}}4
 function s:F.trs.getplugin(plugin, cache)
     if type(a:plugin)==type("")
-        return      [s:F.trs.plug[a:plugin],
-                    \a:cache[s:g.trs.plugregex[a:plugin]].regex]
+        let regex=a:cache[s:g.trs.plugregex[a:plugin]].regex
+        if empty(regex)
+            return 0
+        endif
+        return [s:F.trs.plug[a:plugin], regex]
     endif
     return a:plugin
 endfunction
@@ -897,8 +915,9 @@ function s:F.trs.main(str, transsymb)
     let plugs=s:F.main.option("Plugs")
     let cache.Plugs={"Before": [], "After": []}
     for key in keys(plugs)
-        call map(copy(plugs[key]),
-                    \'add(cache.Plugs[key], s:F.trs.getplugin(v:val, cache))')
+        let cache.Plugs[key]=filter(map(copy(plugs[key]),
+                    \                   's:F.trs.getplugin(v:val, cache)'),
+                    \               'type(v:val)=='.type([]))
     endfor
     "}}}5
     lockvar! cache
@@ -1267,6 +1286,9 @@ function s:F.tof.breakseq(bufdict)
 endfunction
 "{{{3 tof.map: создать привязку
 function s:F.tof.map(bufdict, char)
+    if empty(a:char)
+        return 0
+    endif
     let char=s:F.plug.stuf.mapprepare(a:char)
     let hasdictmap=(v:version==703 && has("patch32")) || v:version>703
     if hasdictmap
@@ -1509,6 +1531,9 @@ endfunction
 "{{{3 tof.unmap: удалить привязки
 function s:F.tof.unmap(bufdict)
     for M in a:bufdict.chlist
+        if empty(M)
+            continue
+        endif
         let curch=s:F.plug.stuf.mapprepare(M)
         execute 'silent! iunmap <special> <buffer> '.curch
         " Если привязка локально, то ничего восстанавливать не надо
