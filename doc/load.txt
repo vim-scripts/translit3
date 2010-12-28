@@ -73,9 +73,11 @@ options in g:loadOptions dictionary (Note that it is a very bad idea).
                     return 1
 :LoadCommand reload {plugin}                            *load-action-reload*
             Reload plugin named {plugin}. Just like |load-action-unload|, but 
-            after unloading |load-reg-file|s are sourced. Note that reloading 
-            some widely used plugins like vimargumentchec (chk) or even this 
-            (load) plugin itself may render other plugins useless.
+            after unloading |load-reg-file|s are sourced.
+:LoadCommand sesreload {plugin}                      *load-action-sesreload*
+            Reload plugin named {plugin}. Just like |load-action-reload|, but 
+            before unloading plugins session information is saved and after 
+            loading plugins it is restored.
 :LoadCommand show                                         *load-action-show*
             Show |load-reg-scriptid|, |load-reg-name|, |load-reg-file| and 
             status for all plugins. Possible statuses: registered and loaded. 

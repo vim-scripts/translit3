@@ -532,40 +532,35 @@ function s:F.main.session(...)
         let r={}
         for [plugtype, plugins] in items(s:g.reg.registered)
             for [plugname, plugdict] in items(s:g.reg.registered[plugtype])
-                let r[plugdict.plid]={
-                            \"status": plugdict.status,
-                            \  "type": plugdict.type,
-                        \}
+                let r[plugdict.plid]={"status": plugdict.status,}
             endfor
         endfor
         return r
     else
-        let rdict=get(a:000, 0, {})
-        if type(rdict)!=type({})
+        let l:Rdict=get(a:000, 0, {})
+        if type(l:Rdict)!=type({})
             return
         endif
         for plugtype in keys(s:g.reg.registered)
             for plugname in keys(s:g.reg.registered[plugtype])
-                if !has_key(rdict, plugtype.'/'.plugname)
-                    call s:F.comm.unload(plugname, plugtype)
+                if !has_key(l:Rdict, plugtype.'/'.plugname)
+                    call s:F.comm.unload(plugname, plugtype, 0)
                 endif
             endfor
         endfor
-        for [plugname, l:Plugopts] in items(rdict)
-            if type(l:Plugopts)!=type({}) || !has_key(l:Plugopts, "status") ||
-                        \!has_key(l:Plugopts, "type") ||
-                        \!has_key(s:g.reg.plugtypes, l:Plugopts.type)
+        for [plid, l:Plugopts] in items(l:Rdict)
+            let [plugname, plugtype]=s:F.comm.parseplid(plid)
+            if type(l:Plugopts)!=type({}) || !has_key(l:Plugopts, "status")
                 unlet l:Plugopts
                 continue
             endif
-            let plugdict=s:F.comm.getpldict(plugname, l:Plugopts.type)
+            let plugdict=s:F.comm.getpldict(plugname, plugtype)
             let curstatus=plugdict.status
             let status=l:Plugopts.status
             if curstatus!=#"loaded" && status==#"loaded"
-                call s:F.comm.load(plugname, l:Plugopts.type)
+                call s:F.comm.load(plugname, plugtype)
             elseif curstatus==#""
-                call s:F.main.eerror(selfname, "ofail",
-                            \["sesr", l:Plugopts.type.'/'.plugname])
+                call s:F.main.eerror(selfname, "ofail", ["sesr", plid])
             endif
             unlet l:Plugopts
         endfor
@@ -599,7 +594,7 @@ lockvar!  s:g.reg.plugtypes
 lockvar!  s:g.reg.mapdict
 lockvar 1 s:g.reg.registered
 lockvar 1 s:g.reg
-"{{{3 reg.regsource: Добавить запись о том, что плагин загружен
+"{{{3 reg.regsource: Добавить запись о том, что дополнение загружено
 "{{{4 aug LoadRegisterLoad
 augroup LoadRegisterLoad
     autocmd!
@@ -656,7 +651,7 @@ function s:F.reg.parsepf(filename)
     endif
     return [plugname, plugtype, plugaddinfo, plugactinfo]
 endfunction
-"{{{3 reg.register:  Зарегистрировать плагин
+"{{{3 reg.register:  Зарегистрировать дополнение
 function s:F.reg.register(regdict)
     let selfname="reg.register"
     "{{{4 Проверка аргументов
@@ -1471,7 +1466,7 @@ function s:F.comm.loadreq(plugdict, rplugname, rplugtype, rplugversion)
         return s:F.main.eerror(selfname, "req", 0, ["nplug", rplid])
     endif
 endfunction
-"{{{3 comm.getpldict:    Получить словарь, связанный с плагином
+"{{{3 comm.getpldict:    Получить словарь, связанный с дополнением
 function s:F.comm.getpldict(plugname, plugtype, ...)
     let selfname="comm.getpldict"
     if !has_key(s:g.reg.registered[a:plugtype], a:plugname) &&
@@ -1484,15 +1479,17 @@ function s:F.comm.getpldict(plugname, plugtype, ...)
     endif
     return s:g.reg.registered[a:plugtype][a:plugname]
 endfunction
-"{{{3 comm.load:         Загрузить плагин
+"{{{3 comm.load:         Загрузить дополнение
 function s:F.comm.load(plugname, plugtype)
     let selfname='comm.load'
     let plid=a:plugtype.'/'.a:plugname
-    call s:F.au.doevent("LoadPluginPre", plid)
     let plugdict=s:F.comm.getpldict(a:plugname, a:plugtype)
     if plugdict.status==#"loaded"
         return 1
-    elseif plugdict.status!=#"sourced"
+    else
+        call s:F.au.doevent("LoadPluginPre", plid)
+    endif
+    if plugdict.status!=#"sourced"
         execute plugdict.srccmd
     endif
     let plugdict.status="loaded"
@@ -1519,7 +1516,7 @@ function s:F.comm.load(plugname, plugtype)
     call s:F.au.doevent("LoadPluginPost", plid)
     return 1
 endfunction
-"{{{3 comm.getfunctions: Получить функции плагина
+"{{{3 comm.getfunctions: Получить функции дополнения
 let s:g.comm.funccache={
             \"functions": {},
             \"dictfunctions": {},
@@ -1585,7 +1582,7 @@ function s:F.comm.run(lazydict, funcname, ...)
         return s:F.main.eerror(selfname, "nfnd", 1, ["nfunc", a:funcname])
     endif
 endfunction
-"{{{3 comm.rdict:        Вернуть словарь с функциями данного плагина
+"{{{3 comm.rdict:        Вернуть словарь с функциями данного дополнения
 function s:F.comm.rdict()
     return s:F.comm.cdict(s:g.reg.registered.plugin.load, 'dictfunctions')
 endfunction
@@ -1625,7 +1622,7 @@ function s:F.comm.getdep(plugdict, hasdep)
     endfor
     return r
 endfunction
-"{{{3 comm.depcomp:      Сравнить количество зависимых плагинов
+"{{{3 comm.depcomp:      Сравнить количество зависимых дополнений
 function s:DepComp(plugdict1, plugdict2)
     let depnum1=len(keys(a:plugdict1.requiredby))
     let depnum2=len(keys(a:plugdict2.requiredby))
@@ -1637,11 +1634,12 @@ function s:DepComp(plugdict1, plugdict2)
 endfunction
 let s:F.int["s:DepComp"]=function("s:DepComp")
 let s:F.comm.depcomp=function("s:DepComp")
-"{{{3 comm.unload:       Удалить плагин
-function s:F.comm.unload(plugname, plugtype)
+"{{{3 comm.unload:       Удалить дополнение
+function s:F.comm.unload(plugname, plugtype, saveses)
+    "{{{4 Объявление переменных
     let plugdict=s:g.reg.registered[a:plugtype][a:plugname]
-    call s:F.au.doevent("UnloadPluginPre", plugdict.plid)
     let srccmd=""
+    "{{{4 Поиск и сортировка зависимых дополнений
     let hasdep={}
     let depends=sort(s:F.comm.getdep(plugdict, hasdep), s:F.comm.depcomp)
     let plugins=filter(copy(depends), 'empty(v:val.requiredby)')
@@ -1668,13 +1666,27 @@ function s:F.comm.unload(plugname, plugtype)
             continue
         endif
     endwhile
+    let srccmd=join(map(reverse(copy(plugins)), 'v:val.srccmd'), "\n")
+    "{{{4 Сохранение информации о сессии
+    let plses={}
+    for plugdict in plugins
+        if a:saveses
+            if has_key(plugdict.F, "main") && has_key(plugdict.F.main,
+                        \                            "session")
+                let plses[plugdict.plid]=deepcopy(plugdict.F.main.session())
+            endif
+        endif
+    endfor
+    "{{{4 Загрузка дополнений, которые ещё не загружены
     for plugdict in plugins
         if plugdict.status!=#'loaded'
             call s:F.comm.load(plugdict.name, plugdict.type)
         endif
     endfor
-    let srccmd=join(map(reverse(copy(plugins)), 'v:val.srccmd'), "\n")
+    "{{{4 Удаление дополнений
     for plugdict in plugins
+        let plid=plugdict.plid
+        call s:F.au.doevent("UnloadPluginPre", plid)
         if has_key(plugdict, "mappings")
             call s:F.maps.delmappings(plugdict)
         endif
@@ -1695,11 +1707,12 @@ function s:F.comm.unload(plugname, plugtype)
             unlet plugdict.g
             unlet plugdict.F
         endif
+        if exists('s:F')
+            call s:F.au.doevent("UnloadPluginPost", plid)
+        endif
     endfor
-    if exists('s:F')
-        call s:F.au.doevent("UnloadPluginPost", a:plugtype.'/'.a:plugname)
-    endif
-    return srccmd
+    "}}}4
+    return [plses, srccmd]
 endfunction
 "{{{2 au: regevent, delevent, doau
 "{{{3 s:g.au
@@ -1821,26 +1834,32 @@ endfunction
 "{{{3 ses.restore
 function s:F.ses.restore(sfile)
     let selfname='ses.restore'
-    let sescontent=readfile(a:sfile, 'b')
-    while sescontent[0]!=#'### YAML document starts here ###'
-        call remove(sescontent, 0)
-    endwhile
-    if !(has_key(s:g.reg.registered.plugin, "yaml") &&
-                \s:g.reg.registered.plugin.yaml.status==#"loaded")
-        call s:F.comm.load("yaml", "plugin")
+    if type(a:sfile)==type("")
+        let sescontent=readfile(a:sfile, 'b')
+        while sescontent[0]!=#'### YAML document starts here ###'
+            call remove(sescontent, 0)
+        endwhile
+        if !(has_key(s:g.reg.registered.plugin, "yaml") &&
+                    \s:g.reg.registered.plugin.yaml.status==#"loaded")
+            call s:F.comm.load("yaml", "plugin")
+        endif
+        if !(has_key(s:g.reg.registered.plugin, "yaml") &&
+                    \s:g.reg.registered.plugin.yaml.status==#"loaded")
+            return s:F.main.eerror(selfname, "ofail", 1, ["yamlf"])
+        endif
+        let plses=s:F.plug.yaml.loads(join(sescontent, "\n"))
+    else
+        let plses=a:sfile
     endif
-    if !(has_key(s:g.reg.registered.plugin, "yaml") &&
-                \s:g.reg.registered.plugin.yaml.status==#"loaded")
-        return s:F.main.eerror(selfname, "ofail", 1, ["yamlf"])
-    endif
-    let plses=s:F.plug.yaml.loads(join(sescontent, "\n"))
-    for [plid, arg] in items(plses)
-        let plugdict=call(s:F.comm.getpldict, s:F.comm.parseplid(plid), {})
+    for [plid, l:Arg] in items(plses)
+        let [plugname, plugtype]=s:F.comm.parseplid(plid)
+        call s:F.comm.load(plugname, plugtype)
+        let plugdict=s:F.comm.getpldict(plugname, plugtype)
         if has_key(plugdict.F, "main") && has_key(plugdict.F.main,
                     \                            "session")
-            call plugdict.F.main.session(arg)
+            call plugdict.F.main.session(l:Arg)
         endif
-        unlet arg
+        unlet l:Arg
     endfor
 endfunction
 "{{{2 mng: main
@@ -1856,6 +1875,7 @@ let s:g.c.cmd.actions.unload={
             \"required": [["type", type("")]]
         \}
 let s:g.c.cmd.actions.reload=s:g.c.cmd.actions.unload
+let s:g.c.cmd.actions.sesreload=s:g.c.cmd.actions.unload
 let s:g.c.cmd.actions.show=s:g.c.nothing
 let s:g.c.cmd.actions.findnr={"model": "simple",
             \                "required": [["type", type("")]]}
@@ -1891,10 +1911,18 @@ function s:F.mng.main(action, ...)
     "{{{4 Действия
     "{{{5 Выгрузить дополнение
     if action==#"unload"
-        return !empty(call(s:F.comm.unload, s:F.comm.parseplid(args[1]), {}))
+        return !empty(call(s:F.comm.unload,
+                    \      s:F.comm.parseplid(args[1])+[0], {})[1])
     "{{{5 Перезагрузить дополнение
     elseif action==#"reload"
-        execute call(s:F.comm.unload, s:F.comm.parseplid(args[1]), {})
+        execute call(s:F.comm.unload, s:F.comm.parseplid(args[1])+[0], {})[1]
+        return 1
+    "{{{5 Перезагрузить дополнение с сохранением сессии
+    elseif action==#"sesreload"
+        let [plses, cmd]=call(s:F.comm.unload, s:F.comm.parseplid(args[1])+[1],
+                    \         {})
+        execute cmd
+        call s:F.ses.restore(plses)
         return 1
     "{{{5 Показать список загруженных дополнений
     elseif action==#"show"
@@ -2000,8 +2028,8 @@ let s:g.comp.a={"model": "actions"}
 let s:g.comp.a.actions={}
 let s:g.comp.a.actions.unload={"model": "simple",
             \              "arguments": [s:g.comp.plug]}
-let s:g.comp.a.actions.reload={"model": "simple",
-            \              "arguments": [s:g.comp.plug]}
+let s:g.comp.a.actions.reload=s:g.comp.a.actions.unload
+let s:g.comp.a.actions.sesreload=s:g.comp.a.actions.unload
 let s:g.comp.a.actions.show={"model": "simple"}
 let s:g.comp.a.actions.findnr={"model": "simple"}
 let s:g.comp.a.actions.nrof={"model": "simple",
