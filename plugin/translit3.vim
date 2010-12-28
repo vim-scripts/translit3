@@ -308,28 +308,48 @@ function s:F.main.destruct()
 endfunction
 "{{{3 main.session: поддержка LoadCommand mksession
 function s:F.main.session(...)
+    let selfname='main.session'
     if empty(a:000)
         let r={}
         let r.tof={}
-        let r.tof.bufinfo={}
-        for [bufnr, bufinfo] in items(s:g.tof.mutable.bufdicts)
-            let r.tof.bufinfo[bufnr]=copy(bufinfo)
-            let r.tof.bufinfo[bufnr].bufname=bufname(bufnr)
-            unlet r.tof.bufinfo[bufnr].plugs
-            unlet r.tof.bufinfo[bufnr].opts
-            unlet r.tof.bufinfo[bufnr].chlist
-            unlet r.tof.bufinfo[bufnr].bufnr
+        let r.tof.bufdict={}
+        for [bufnr, bufdict] in items(s:g.tof.mutable.bufdicts)
+            let r.tof.bufdict[bufnr]=copy(bufdict)
+            let r.tof.bufdict[bufnr].bufname=bufname(bufnr)
+            unlet r.tof.bufdict[bufnr].plugs
+            unlet r.tof.bufdict[bufnr].opts
+            unlet r.tof.bufdict[bufnr].chlist
+            unlet r.tof.bufdict[bufnr].bufnr
         endfor
+        if exists("s:g.tof.mutable.transsymb")
+            let r.tof.transsymb=s:g.tof.mutable.transsymb
+        endif
         return r
     else
         let s=a:000[0]
-        " Очистим словарь, не изменяя ссылку
-        for bufnr in keys(s:g.tof.mutable.bufdicts)
-            unlet s:g.tof.mutable.bufdicts[bufnr]
-        endfor
         " Проверка ввода слишком сложна, поэтому я опускаю её
-        for [bufnr, bufinfo] in items(s.tof.bufinfo)
-            call s:F.tof.setup(0, 0, bufinfo)
+        if exists("s.tof.transsymb")
+            call s:F.mng.tof(1, "start", s.tof.transsymb)
+        endif
+        " Отменим все действующие транслитерации по мере ввода
+        call s:F.mng.tof(1, "stop")
+        " Очистим кэш
+        call s:F.mng.cache("purge", "all")
+        for [bufnr, bufdict] in items(s.tof.bufdict)
+            let bufdict.chlist=[]
+            let bufdict.opts={}
+            let bufdict.plugs=[]
+            " Здесь приходится идентифицировать буфер по имени, что не всегда 
+            " надёжно
+            let bufdict.bufnr=bufnr(bufdict.bufname)
+            if empty(bufdict.bufnr)
+                call s:F.main.eerror(selfname, "nfnd",
+                            \["bnnf", bufdict.bufname])
+                continue
+            endif
+            unlet bufdict.bufname
+            call s:F.comm.newcache(bufdict.transsymb.origin, bufdict.transsymb)
+            call s:F.tof.setup(0, 0, bufdict)
         endfor
     endif
 endfunction
@@ -496,8 +516,7 @@ function s:F.comm.formattr(transsymb)
                         "{{{9 Проверка настроек
                         if type(value)==type({}) &&
                                     \has_key(value, "options") &&
-                                    \has_key(value.options,
-                                    \                               "capital")
+                                    \has_key(value.options, "capital")
                             let cap=value.options.capital
                             if cap==#"none"
                                 let result[lower][1]=0
@@ -523,6 +542,14 @@ function s:F.comm.formattr(transsymb)
         return {"none": a:transsymb}
     endif
     "}}}
+endfunction
+"{{{3 comm.newcache:     добавить запись в кэш
+function s:F.comm.newcache(srctrans, innertrans)
+    let a:innertrans.id=len(s:g.cache.trans[0])
+    call add(s:g.cache.trans[0], deepcopy(a:srctrans))
+    call add(s:g.cache.trans[1], a:innertrans)
+    call add(s:g.cache.trans[2], deepcopy(s:g.cache.init.print))
+    call add(s:g.cache.trans[3], [])
 endfunction
 "{{{3 comm.gettranssymb: получить таблицу транслитерации
 function s:F.comm.gettranssymb(...)
@@ -611,11 +638,7 @@ function s:F.comm.gettranssymb(...)
     " Делая глубокое копирование здесь, мы защищаемся от устаревания словаря: 
     " когда изменения в исходный словарь внесены, но ещё не внесены 
     " в преобразованный словарь
-    let result.id=len(s:g.cache.trans[0])
-    call add(s:g.cache.trans[0], deepcopy(rettrans))
-    call add(s:g.cache.trans[1], result)
-    call add(s:g.cache.trans[2], deepcopy(s:g.cache.init.print))
-    call add(s:g.cache.trans[3], [])
+    call s:F.comm.newcache(rettrans, result)
     if index(["file", "var"], curtrans.source[0])!=-1 &&
                 \index(s:g.comp.lst.transsymb, curtrans.source[1])==-1
         call add(s:g.comp.lst.transsymb, curtrans.source[1])
@@ -1442,7 +1465,6 @@ function s:F.tof.makemaps(bufdict)
     endif
     let a:bufdict.chlist=copy(chars)
     "{{{4 Плагины
-    let a:bufdict.opts={}
     if !empty(a:bufdict.originplugs)
         let plugs=a:bufdict.originplugs
     else
@@ -1503,13 +1525,6 @@ function s:F.tof.setup(buffer, transsymb, ...)
         endif
     else
         let bufdict=a:000[0]
-        " Здесь приходится идентифицировать буфер по имени, что не всегда 
-        " надёжно
-        let bufdict.bufnr=bufnr(bufdict.bufname)
-        if empty(bufdict.bufnr)
-            return s:F.main.eerror(selfname, "nfnd", ["bnnf", bufdict.bufname])
-        endif
-        unlet bufdict.bufname
     endif
     lockvar! bufdict.bufnr
     lockvar! bufdict.writefunc
@@ -1972,16 +1987,13 @@ function s:F.mng.cache(action, ...)
     "{{{4 Очистка кэша
     if a:action==#"purge"
         let target=a:000[0]
-        if target==?"innertrans" || target==?"trans"
+        if target==?"innertrans" || target==?"trans" || target==?"all"
             let s:g.cache.trans=deepcopy(s:g.cache.init.trans)
         elseif target==?"printtrans"
             call map(s:g.cache.trans[2],
                         \'deepcopy(s:g.cache.init.print)')
         elseif target==?"toftrans"
             call map(s:g.cache.trans[3], '[]')
-        elseif target==?"all"
-            let s:g.cache.transf={}
-            let s:g.cache.trans=deepcopy(s:g.cache.init.trans)
         endif
     "{{{4 Печать кэша
     elseif a:action==#"show"
