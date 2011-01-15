@@ -11,6 +11,7 @@ endif
 let s:F={
             \"plug": {},
             \"cons": {},
+            \"_cons":{},
             \"stuf": {},
             \"main": {},
             \ "mng": {},
@@ -103,6 +104,7 @@ let s:g.p={
             \   "yamlf": "Failed to load yaml plugin",
             \    "sesr": "While restoring a session, failed to load plugin %s",
             \    "wext": "Wrong vim script extension: “%s” (should be “vim”)",
+            \     "fnf": "Unable to find function “%s”",
             \},
             \"etype": {
             \    "value": "InvalidValue",
@@ -112,6 +114,18 @@ let s:g.p={
             \     "nfnd": "NotFound",
             \    "ofail": "OperationFailed",
             \      "req": "RequirementsUnsatisfied",
+            \},
+            \"c": {
+            \   "preffunc": "Regarg dictionary must either have both fprefix ".
+            \               "and functions keys or don't have them at all",
+            \   "prefcomm": "Regarg dictionary must either have both cprefix ".
+            \               "and commands keys or don't have them at all",
+            \     "reqkey": "One of required keys is not present",
+            \    "intmaps": "Invalid mappings dictionary",
+            \   "plugtype": "Plugin type not found",
+            \   "funclist": "Invalid function list",
+            \     "dflist": "Invalid dictfunctions list",
+            \    "regdict": "Invalid registration dictionary",
             \},
             \"th": ["Type", "Name", "File", "Status"],
             \"nfnd": "Not found",
@@ -137,7 +151,7 @@ call map(["n", "v", "x", "s", "o", "i", "l", "c"],
             \'extend(s:g.maps.mapcommands, {(v:val): (v:val."noremap")})')
 lockvar 1 s:g.maps
 "{{{1 Функции
-"{{{2 cons: eerror, option
+"{{{2 cons: eerror, option, bufdict
 "{{{3 cons.eerror
 function s:F.cons.eerror(plugin, from, type, ...)
     let etype=((type(a:type)==type("") &&
@@ -342,7 +356,61 @@ function s:F.cons.option(plugin, option)
     "}}}4
     return retopt
 endfunction
-"{{{2 stuf: findnr, findpath, printtable, fdictstr, string, ...
+"{{{3 cons.bufdict
+function s:F.cons.bufdict(plugin, ...)
+    let selfname="cons.bufdict"
+    call add(a:plugin.bufdicts, [{}])
+    "{{{4 {Constructor}
+    if type(get(a:000, 0))==2 && exists('*a:1')
+        call add(a:plugin.bufdicts[-1], a:1)
+    else
+        call add(a:plugin.bufdicts[-1], 0)
+    endif
+    "{{{4 {Destructor}
+    if type(get(a:000, 1))==2 && exists('*a:2')
+        call add(a:plugin.bufdicts[-1], a:2)
+    else
+        call add(a:plugin.bufdicts[-1], 0)
+    endif
+    "}}}4
+    return a:plugin.bufdicts[-1][0]
+endfunction
+"{{{4 _cons.forallbufdicts
+function s:F._cons.forallbufdicts(f, bufnr)
+    for plugtype in keys(s:g.reg.registered)
+        for plugname in keys(s:g.reg.registered[plugtype])
+            for bufdictinfo in s:g.reg.registered[plugtype][plugname].bufdicts
+                call call(s:F._cons[a:f."bufdict"], [a:bufnr]+bufdictinfo, {})
+            endfor
+        endfor
+    endfor
+endfunction
+"{{{4 _cons.rmbufdict
+function s:F._cons.rmbufdict(bufnr, bufdicts, Constructor, Destructor)
+    if has_key(a:bufdicts, a:bufnr)
+        if type(a:Destructor)==2
+            call call(a:Destructor, [a:bufnr, a:bufdicts], {})
+        endif
+        unlet a:bufdicts[a:bufnr]
+    endif
+endfunction
+"{{{4 _cons.addbufdict
+function s:F._cons.addbufdict(bufnr, bufdicts, Constructor, Destructor)
+    let d={}
+    if type(a:Constructor)==2
+        let d.Val=call(a:Constructor, [a:bufnr, a:bufdicts], {})
+        if type(d.Val)!=type(0) || d.Val!=0
+            let a:bufdicts[a:bufnr]=d.Val
+        endif
+    endif
+endfunction
+"{{{4 aug LoadProcessBufdicts
+augroup LoadProcessBufdicts
+    autocmd!
+    autocmd BufWipeout * call s:F._cons.forallbufdicts('rm',  +expand('<abuf>'))
+    autocmd BufAdd     * call s:F._cons.forallbufdicts('add', +expand('<abuf>'))
+augroup END
+"{{{2 stuf: findnr, findpath, printtable, string, ...
 "{{{3 s:Eval: доступ к внутренним переменным
 " Внутренние переменные, в том числе s:F, недоступны в привязках
 function s:Eval(var)
@@ -415,31 +483,20 @@ endfunction
 "{{{3 stuf.findpath: Найти номер функции
 function s:F.stuf.findpath(path)
     let selfname="stuf.findpath"
-    let s=split(a:path, '/')
-    if s==[]
-        return 0
-    endif
-    if has_key(s:g.reg.plugtypes, s[0])
-        let plugtype=remove(s, 0)
-    else
-        let plugtype='plugin'
-    endif
-    let [plugname; path]=s
-    if !has_key(s:g.reg.registered[plugtype], plugname)
+    let [plugname, plugtype, path]=s:F.comm.parseplid(a:path, 1)
+    if empty(path) && !has_key(s:g.reg.registered[plugtype], plugname)
         return s:F.main.eerror(selfname, "nfnd",
                     \["nplug", plugtype.'/'.plugname])
     endif
-    let Fdict=s:g.reg.registered[plugtype][plugname].F
+    let d={}
+    let d.Fdict=s:g.reg.registered[plugtype][plugname].F
     for component in path
-        if type(Fdict)!=type({}) || !has_key(Fdict, component)
+        if type(d.Fdict)!=type({}) || !has_key(d.Fdict, component)
             return 0
         endif
-        let Tmp=Fdict[component]
-        unlet Fdict
-        let Fdict=Tmp
-        unlet Tmp
+        let d.Fdict=d.Fdict[component]
     endfor
-    return Fdict
+    return d.Fdict
 endfunction
 "{{{3 stuf.strlen: получение длины строки
 function s:F.stuf.strlen(stuf)
@@ -489,25 +546,6 @@ function s:F.stuf.printtable(header, lines)
     echo join(map(copy(a:lines), 's:F.stuf.printtline(v:val, lenlst)'), "\n")
     return 1
 endfunction
-"{{{3 stuf.fdictstr
-function s:F.stuf.fdictstr(dict, indent)
-    if a:indent > &maxfuncdepth-10
-        return []
-    endif
-    let result=[]
-    for [key, Value] in items(a:dict)
-        if type(Value)==type({})
-            let list=s:F.stuf.fdictstr(Value, a:indent+1)
-            if list!=[]
-                let result+=[[a:indent, key, ""]]+list
-            endif
-        elseif type(Value)==2
-            call add(result, [a:indent, key, Value])
-        endif
-        unlet Value
-    endfor
-    return result
-endfunction
 "{{{2 main: eerror, destruct, session
 "{{{3 main.destruct: Выгрузить дополнение
 function s:F.main.destruct()
@@ -537,32 +575,33 @@ function s:F.main.session(...)
         endfor
         return r
     else
-        let l:Rdict=get(a:000, 0, {})
-        if type(l:Rdict)!=type({})
+        let d={}
+        let d.Rdict=get(a:000, 0, {})
+        if type(d.Rdict)!=type({})
             return
         endif
         for plugtype in keys(s:g.reg.registered)
             for plugname in keys(s:g.reg.registered[plugtype])
-                if !has_key(l:Rdict, plugtype.'/'.plugname)
+                if !has_key(d.Rdict, plugtype.'/'.plugname)
                     call s:F.comm.unload(plugname, plugtype, 0)
                 endif
             endfor
         endfor
-        for [plid, l:Plugopts] in items(l:Rdict)
+        for [plid, d.Plugopts] in items(d.Rdict)
             let [plugname, plugtype]=s:F.comm.parseplid(plid)
-            if type(l:Plugopts)!=type({}) || !has_key(l:Plugopts, "status")
-                unlet l:Plugopts
+            if type(d.Plugopts)!=type({}) || !has_key(d.Plugopts, "status")
+                unlet d.Plugopts
                 continue
             endif
             let plugdict=s:F.comm.getpldict(plugname, plugtype)
             let curstatus=plugdict.status
-            let status=l:Plugopts.status
+            let status=d.Plugopts.status
             if curstatus!=#"loaded" && status==#"loaded"
                 call s:F.comm.load(plugname, plugtype)
             elseif curstatus==#""
                 call s:F.main.eerror(selfname, "ofail", ["sesr", plid])
             endif
-            unlet l:Plugopts
+            unlet d.Plugopts
         endfor
     endif
 endfunction
@@ -708,6 +747,7 @@ function s:F.reg.register(regdict)
                 \      "requires": {},
                 \"requnsatisfied": {},
                 \    "requiredby": {},
+                \      "bufdicts": [],
             \}
     if exists('*fnameescape')
         let entry.srccmd="source ".fnameescape(entry.file)
@@ -820,21 +860,25 @@ let s:g.c.comdict=[[["equal", "nargs" ],   ["or", [["in", ['*',
             \                                 '^custom\(list\)\=,s:.*']]]],
             \        [["equal", "func"], ["regex", s:g.c.reg.rf]]]
 "{{{5 s:g.c.register
-let s:g.c.intmaps=["dict", [[["regex", '^\(+\)\@!'],
-            \                  ["and", [["hkey", "function"],
-            \                           ["dict", [[["equal", "function"],
-            \                                      ["regex", s:g.c.reg.rf]],
-            \                                     [["equal", "default"],
-            \                                      ["type", type("")]],
-            \                                     [["equal", "silent"],
-            \                                      ["bool", ""]],
-            \                                     [["equal", "leader"],
-            \                                      ["bool", ""]],
-            \                                     [["equal", "type"],
-            \                                      ["keyof",
-            \                                       s:g.maps.mapcommands]]]]]
-            \                  ]]]]
-let s:g.c.plugtype=["keyof", s:g.reg.plugtypes]
+let s:g.c.intmaps=["dict", [[["regex", '^+\@!'],
+            \                ["and", [["hkey", "function"],
+            \                         ["dict", [[["equal", "function"],
+            \                                    ["regex", s:g.c.reg.rf]],
+            \                                   [["equal", "default"],
+            \                                    ["type", type("")]],
+            \                                   [["equal", "silent"],
+            \                                    ["bool", ""]],
+            \                                   [["equal", "leader"],
+            \                                    ["bool", ""]],
+            \                                   [["equal", "type"],
+            \                                    ["keyof",
+            \                                     s:g.maps.mapcommands]],
+            \                                   [["equal", "getc"],
+            \                                    ["regex", s:g.c.reg.rf]],
+            \                                   [["equal", "nochars"],
+            \                                    ["any", ""]]]]]
+            \                ]]], s:g.p.c.intmaps]
+let s:g.c.plugtype=["keyof", s:g.reg.plugtypes, s:g.p.c.plugtype]
 let s:g.c.funclist=["alllst",
             \       ["optlst", [[["regex", s:g.c.reg.tf],
             \                    ["regex", s:g.c.reg.rf]],
@@ -847,20 +891,22 @@ let s:g.c.funclist=["alllst",
             \                             ["chklst",
             \                              [["regex", '%\.'],
             \                               ["regex", '%\.'],
-            \                               ["regex", '%\.']]]]]]]]]]
+            \                               ["regex", '%\.']]]]]]]]],
+            \       s:g.p.c.funclist]
 let s:g.c.dfunclist=deepcopy(s:g.c.funclist)
 let s:g.c.dfunclist[1][1][0][0]=["type", type("")]
+let s:g.c.dfunclist[2]=s:g.p.c.dflist
 let s:g.c.register=["and", [
             \["map", ["hkey", ["oprefix",
             \                  "funcdict",
             \                  "globdict",
             \                  "sid",
             \                  "scriptfile",
-            \                  "apiversion",]]],
+            \                  "apiversion",]],  s:g.p.c.reqkey],
             \["allorno", [["hkey", "fprefix"],
-            \             ["hkey", "functions"]]],
+            \             ["hkey", "functions"]], s:g.p.c.preffunc],
             \["allorno", [["hkey", "cprefix"],
-            \             ["hkey", "commands"]]],
+            \             ["hkey", "commands" ]], s:g.p.c.prefcomm],
             \["dict", [
             \   [["equal", "dictfunctions"], s:g.c.dfunclist],
             \   [["equal", "fprefix"],  ["regex", s:g.c.reg.func]],
@@ -888,7 +934,7 @@ let s:g.c.register=["and", [
             \                                       [s:g.c.plugtype]]]]],
             \   [["equal", "leader"],     ["type", type("")]],
             \   [["any", ''], ["any", '']],
-            \ ]
+            \ ], s:g.p.c.regdict
             \],
         \]]
 "{{{3 reg.unreg:     Удалить команды и функции
@@ -1065,8 +1111,62 @@ function s:F.maps.run(type, mapstring, buffer)
     if plugdict.status!=#"loaded"
         call s:F.comm.load(plugname, plugtype)
     endif
-    return call(eval("plugdict.F.".(mapoptions.function)),
-                \[a:type, mapname, a:mapstring, a:buffer], {})
+    if has_key(mapoptions, 'getc')
+        let r   =   {"type":   a:type,
+                    \"name":     mapname,
+                    \"string": a:mapstring,
+                    \"buffer": a:buffer,
+                    \"self":   eval("plugdict.F.".(mapoptions.getc))}
+        if &timeout && has("float") && has("reltime")
+            let timeout=&timeoutlen/1000.0
+            let time=reltime()
+        endif
+        let laststatus=((has_key(mapoptions, "nochars"))?(2):(1))
+        if laststatus==2
+            let last2=[0, deepcopy(r)]
+        endif
+        let chars=[]
+        let prevstatus=0
+        while ((exists("time"))?
+                    \(eval(reltimestr(reltime(time)))<timeout):
+                    \(1))
+            if getchar(1)
+                let char=getchar()
+                if type(char)==type(0)
+                    let char=nr2char(char)
+                endif
+                call add(chars, char)
+                let prevstatus=laststatus
+                let laststatus=r.self(r, char)
+                if laststatus==2
+                    let last2=[len(chars), deepcopy(r)]
+                elseif laststatus==0
+                    break
+                else
+                    if exists("last2")
+                        unlet last2
+                    endif
+                    if laststatus==3
+                        break
+                    endif
+                endif
+                if exists("time")
+                    let time=reltime()
+                endif
+            else
+                sleep 50m
+            endif
+        endwhile
+        let addchars=""
+        if exists("last2") && len(chars)>last2[0]
+            let addchars.=join(chars[last2[0]:], "")
+        endif
+        return call(eval("plugdict.F.".(mapoptions.function)),
+                    \[a:type, mapname, a:mapstring, a:buffer, r], {}).addchars
+    else
+        return call(eval("plugdict.F.".(mapoptions.function)),
+                    \[a:type, mapname, a:mapstring, a:buffer], {})
+    endif
 endfunction
 "{{{3 maps.unmap
 function s:F.maps.unmap(plugname, plugtype, mapname, mapoptions, mapstring,
@@ -1175,13 +1275,26 @@ endfunction
 "{{{3 s:g.comm
 let s:g.comm={}
 "{{{3 comm.parseplid
-function s:F.comm.parseplid(plid)
-    let plugtype=matchstr(a:plid, '/\=[^/]*')
-    if !has_key(s:g.reg.registered, plugtype)
-        let plugtype="plugin"
-        let plugname=a:plid
+function s:F.comm.parseplid(plid, ...)
+    let components=split(a:plid, '/')
+    let plugtype="plugin"
+    if !has_key(s:g.reg.registered, components[0])
+        let plugname=join(components, '/')
     else
-        let plugname=a:plid[(len(plugtype)+1):]
+        let plugtype=remove(components, 0)
+        let plugname=join(components, '/')
+    endif
+    if !empty(a:000)
+        let tail=[]
+        while !empty(components)
+            let curplugname=join(components, '/')
+            if has_key(s:g.reg.registered[plugtype], curplugname)
+                let plugname=curplugname
+                break
+            endif
+            call insert(tail, remove(components, -1))
+        endwhile
+        return [plugname, plugtype, tail]
     endif
     return [plugname, plugtype]
 endfunction
@@ -1296,8 +1409,8 @@ lockvar! s:g.comm.cmdfargs
 "{{{3 comm.getcheck:     Создать строки проверки для аргументов функции
 function s:F.comm.getcheck(check, checkstr, plugdict)
     if !empty(a:check)
-        return "    let args=s:F.plug.chk.checkarguments(".a:checkstr.", ".
-                    \                                   "a:000)\n".
+        return "    let args=s:F.comm.run(s:F.plug.chk, 'checkarguments', ".
+                    \                     a:checkstr.", a:000)\n".
                     \"    if type(args)!=type([])\n".
                     \"        throw 'CheckFailed(".a:plugdict.type."/'.".
                     \                              a:plugdict.quotedname.'.'.
@@ -1309,11 +1422,11 @@ endfunction
 "{{{3 comm.getwith:      Создать строки, реализующие аналог with
 function s:F.comm.getwith(withlst, plugdict)
     if !empty(a:withlst)
-        let before=""
+        let before="    let saved={}"
         let  after="    finally\n"
         let i=0
         for wspec in a:withlst
-            let varname="l:Saved".i
+            let varname="saved.".i
             if exists(wspec[0])
                 let before.=    "    let ".varname. "=".wspec[0]."\n".
                             \   "    let ".wspec[0]."=".wspec[1]."\n"
@@ -1714,6 +1827,10 @@ function s:F.comm.unload(plugname, plugtype, saveses)
     "}}}4
     return [plses, srccmd]
 endfunction
+"{{{3 comm.getfnr:      Получить номер функции из ссылки на неё
+function s:F.comm.getfnr(Fref)
+    return string(a:Fref)[10:-3]
+endfunction
 "{{{2 au: regevent, delevent, doau
 "{{{3 s:g.au
 let s:g.au={}
@@ -1736,8 +1853,9 @@ function s:F.au.doau(Command, event, plugin)
 endfunction
 "{{{3 au.doevent
 function s:F.au.doevent(event, plugin)
-    for l:Cmd in get(s:g.au.events[a:event], a:plugin, [])
-        call s:F.au.doau(l:Cmd, a:event, a:plugin)
+    let d={}
+    for d.Cmd in get(s:g.au.events[a:event], a:plugin, [])
+        call s:F.au.doau(d.Cmd, a:event, a:plugin)
     endfor
 endfunction
 "{{{3 au.regevent
@@ -1851,20 +1969,47 @@ function s:F.ses.restore(sfile)
     else
         let plses=a:sfile
     endif
-    for [plid, l:Arg] in items(plses)
+    let d={}
+    for [plid, d.Arg] in items(plses)
         let [plugname, plugtype]=s:F.comm.parseplid(plid)
         call s:F.comm.load(plugname, plugtype)
         let plugdict=s:F.comm.getpldict(plugname, plugtype)
         if has_key(plugdict.F, "main") && has_key(plugdict.F.main,
                     \                            "session")
-            call plugdict.F.main.session(l:Arg)
+            call plugdict.F.main.session(d.Arg)
         endif
-        unlet l:Arg
+        unlet d.Arg
     endfor
 endfunction
 "{{{2 mng: main
+"{{{3 mng.getfnrorstring
+function s:F.mng.getfnrorstring(Fstr)
+    return ((type(a:Fstr)==2)?(s:F.comm.getfnr(a:Fstr)):(a:Fstr))
+endfunction
+"{{{3 mng.fdictstr
+function s:F.mng.fdictstr(dict, indent)
+    if a:indent > &maxfuncdepth-10
+        return []
+    endif
+    let result=[]
+    let d={}
+    for [key, d.Value] in items(a:dict)
+        if type(d.Value)==type({})
+            let list=s:F.mng.fdictstr(d.Value, a:indent+1)
+            if list!=[]
+                let result+=[[a:indent, key, ""]]+list
+            endif
+        elseif type(d.Value)==2
+            call add(result, [a:indent, key, d.Value])
+        endif
+        unlet d.Value
+    endfor
+    return result
+endfunction
 "{{{3 mng.main
 "{{{4 s:g.c.cmd
+let s:g.c.plugfunc=["regex", '^/']
+let s:g.c.plugin=["type", type("")]
 let s:g.c.nothing={"model": "optional"}
 let s:g.c.cmd={
             \"model": "actions",
@@ -1880,18 +2025,23 @@ let s:g.c.cmd.actions.show=s:g.c.nothing
 let s:g.c.cmd.actions.findnr={"model": "simple",
             \                "required": [["type", type("")]]}
 let s:g.c.cmd.actions.nrof={"model": "simple",
-            \              "required": [{"check": ["regex", '^/']}]}
+            \              "required": [s:g.c.plugfunc]}
 let s:g.c.cmd.actions.autocmd={"model": "optional",
             \               "required": [["keyof", s:g.au.events],
-            \                            ["type", type("")],
+            \                            s:g.c.plugin,
             \                            ["type", type("")]],
             \                   "next": ["type", type("")]}
 let s:g.c.cmd.actions["autocmd!"]={"model": "optional",
             \                   "required": [["keyof", s:g.au.events]],
-            \                   "optional": [[["type", type("")], {}, 0]],
+            \                   "optional": [[s:g.c.plugin, {}, 0]],
             \                       "next": ["type", type("")]}
 let s:g.c.cmd.actions.mksession={"model": "simple",
             \                 "required": [["file", "w"]]}
+let s:g.c.cmd.actions.function={"model": "simple",
+            \                "required": [s:g.c.plugfunc]}
+let s:g.c.cmd.actions.breakadd={"model": "optional",
+            \                "required": [s:g.c.plugfunc],
+            \                "optional": [[["nums", [1]], {}, 1]]}
 lockvar! s:g.c
 unlockvar! s:g.reg.registered
 for s:key in keys(s:g.au.events)
@@ -1903,6 +2053,7 @@ function s:F.mng.main(action, ...)
     "{{{4 Объявление переменных
     let selfname="mng.main"
     let action=tolower(a:action)
+    let d={}
     "{{{4 Проверка ввода
     let args=s:F.plug.chk.checkarguments(s:g.c.cmd, [action]+a:000)
     if type(args)!=type([])
@@ -1949,20 +2100,62 @@ function s:F.mng.main(action, ...)
         return 1
     "{{{5 Найти номер, соответствующий функции
     elseif action==#"nrof"
-        let Result=s:F.stuf.findpath(args[1])
-        if type(Result)==2
-            echo Result
+        let d.Result=s:F.stuf.findpath(args[1])
+        if type(d.Result)==type(0)
+            return s:F.main.eerror(selfname, "nfnd", ["fnf", args[1]])
+        elseif type(d.Result)==2
+            echo d.Result
             return 1
-        elseif type(Result)==type({})
-            let list=s:F.stuf.fdictstr(Result, 0)
+        elseif type(d.Result)==type({})
+            let list=s:F.mng.fdictstr(d.Result, 0)
             call map(list, '[repeat(" ", v:val[0]).v:val[1], '.
-                        \"substitute(s:F.stuf.string(v:val[2]), ".
-                        \                   "'^.*''\\([^'']*\\)''.*$', ".
-                        \                   "'\\1', '')]")
+                        \   's:F.mng.getfnrorstring(v:val[2])]')
             return s:F.stuf.printtable([], list)
         else
             echo s:g.p.nfnd
         endif
+    "{{{5 function
+    elseif action==#"function"
+        let d.Result=s:F.stuf.findpath(args[1])
+        if type(d.Result)==type(0)
+            return s:F.main.eerror(selfname, "nfnd", ["fnf", args[1]])
+        elseif type(d.Result)==2
+            let d.Result={args[1]: d.Result}
+        endif
+        let list=s:F.mng.fdictstr(d.Result, 0)
+        for [indent, name, d.Function] in list
+            echo repeat(" ", indent).name.":"
+            if type(d.Function)==2
+                try
+                    fu d.Function
+                catch /Vim(function):E123:/
+                    if !exists('plugname')
+                        let [plugname,plugtype,p]=s:F.comm.parseplid(args[1], 1)
+                        unlet p
+                        let plugdict=s:F.comm.getpldict(plugname, plugtype)
+                    endif
+                    execute "fu <SNR>".(plugdict.scriptid)."_".
+                                \s:F.comm.getfnr(d.Function)[2:]
+                endtry
+            endif
+            unlet d.Function
+        endfor
+    "{{{5 breakadd
+    elseif action==#"breakadd"
+        let d.Result=s:F.stuf.findpath(args[1])
+        let line=args[2]
+        if type(d.Result)==type(0)
+            return s:F.main.eerror(selfname, "nfnd", ["fnf", args[1]])
+        elseif type(d.Result)==2
+            let list=[s:F.comm.getfnr(d.Result)]
+        else
+            let list=s:F.mng.fdictstr(d.Result, 0)
+            call map(filter(list, 'type(v:val[2])==2'),
+                        \'s:F.comm.getfnr(v:val[2])')
+        endif
+        for funcid in list
+            execute 'breakadd func '.line.' '.funcid
+        endfor
     "{{{5 autocmd
     elseif action==#"autocmd"
         call s:F.au.regevent(args[1], args[2], join(args[3:]))
@@ -2024,6 +2217,7 @@ endfunction
 let s:g.comp={}
 let s:g.comp.plug=["func", s:F.comp.plug]
 let s:g.comp.event=["keyof", s:g.au.events]
+let s:g.comp.plugfunc=["func", s:F.comp.nrof]
 let s:g.comp.a={"model": "actions"}
 let s:g.comp.a.actions={}
 let s:g.comp.a.actions.unload={"model": "simple",
@@ -2033,13 +2227,17 @@ let s:g.comp.a.actions.sesreload=s:g.comp.a.actions.unload
 let s:g.comp.a.actions.show={"model": "simple"}
 let s:g.comp.a.actions.findnr={"model": "simple"}
 let s:g.comp.a.actions.nrof={"model": "simple",
-            \              "arguments": [["func", s:F.comp.nrof]]}
+            \              "arguments": [s:g.comp.plugfunc]}
 let s:g.comp.a.actions.autocmd={"model": "simple",
             \               "arguments": [s:g.comp.event, s:g.comp.plug]}
 let s:g.comp.a.actions["autocmd!"]={"model": "simple",
             \                   "arguments": [s:g.comp.event, s:g.comp.plug]}
 let s:g.comp.a.actions.mksession={"model": "simple",
             \                 "arguments": [["file", '.vim']]}
+let s:g.comp.a.actions.function={"model": "simple",
+            \                "arguments": [s:g.comp.plugfunc]}
+let s:g.comp.a.actions.breakadd={"model": "simple",
+            \                "arguments": [s:g.comp.plugfunc]}
 let s:g.comp._cname="load"
 "{{{1
 let s:g.reginfo=s:F.reg.register({
@@ -2054,7 +2252,7 @@ let s:g.reginfo=s:F.reg.register({
             \   "scriptfile": s:g.load.scriptfile,
             \      "oneload": 1,
             \"dictfunctions": s:g.comm.f,
-            \   "apiversion": "0.7",
+            \   "apiversion": "0.9",
         \})
 lockvar! s:g.reginfo
 let s:F.main.eerror=s:g.reginfo.functions.eerror
