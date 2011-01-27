@@ -147,6 +147,7 @@ let s:g.maps.mapcommands={
             \" ": "noremap",
             \"!": "noremap!",
         \}
+let s:g.maps.op={'args': [], 'mode': ""}
 call map(["n", "v", "x", "s", "o", "i", "l", "c"],
             \'extend(s:g.maps.mapcommands, {(v:val): (v:val."noremap")})')
 lockvar 1 s:g.maps
@@ -202,9 +203,6 @@ function s:F.cons.eerror(plugin, from, type, ...)
     return 0
 endfunction
 "{{{3 cons.option
-"{{{4 s:g.c.maps
-let s:g.c.maps=["dict", [[["any", ""], ["type", type("")]]]]
-"}}}4
 function s:F.cons.option(plugin, option)
     let selfname="cons.option"
     "{{{4 Объявление переменных
@@ -232,7 +230,9 @@ function s:F.cons.option(plugin, option)
             return r
         endif
         if exists("b:".oname) && has_key(b:{oname}, "_maps")
-            if !s:F.plug.chk.checkargument(s:g.c.maps, b:{oname}._maps)
+            if type(b:{oname}._maps)!=type({}) || 
+                            \!empty(filter(values(b:{oname}._maps),
+                            \              'type(v:val)!='.type("")))
                 return s:F.cons.eerror(a:plugin, selfname, "value", 1,
                             \          printf(s:g.p.emsg.procd, a:option,
                             \                 a:plugin.name, 'b:'.oname),
@@ -241,7 +241,9 @@ function s:F.cons.option(plugin, option)
             let r[0]=b:{oname}._maps
         endif
         if exists("g:".oname) && has_key(g:{oname}, "_maps")
-            if !s:F.plug.chk.checkargument(s:g.c.maps, g:{oname}._maps)
+            if type(g:{oname}._maps)!=type({}) || 
+                            \!empty(filter(values(g:{oname}._maps),
+                            \              'type(v:val)!='.type("")))
                 return s:F.cons.eerror(a:plugin, selfname, "value", 1,
                             \          printf(s:g.p.emsg.procd, a:option,
                             \                 a:plugin.name, 'g:'.oname),
@@ -391,7 +393,9 @@ function s:F._cons.rmbufdict(bufnr, bufdicts, Constructor, Destructor)
         if type(a:Destructor)==2
             call call(a:Destructor, [a:bufnr, a:bufdicts], {})
         endif
-        unlet a:bufdicts[a:bufnr]
+        if has_key(a:bufdicts, a:bufnr)
+            unlet a:bufdicts[a:bufnr]
+        endif
     endif
 endfunction
 "{{{4 _cons.addbufdict
@@ -549,7 +553,8 @@ endfunction
 "{{{2 main: eerror, destruct, session
 "{{{3 main.destruct: Выгрузить дополнение
 function s:F.main.destruct()
-    for aug in ["LoadRegisterLoad", "LoadNewBuffer", "LoadDeleteBufferMappings"]
+    for aug in ["LoadRegisterLoad", "LoadNewBuffer", "LoadDeleteBufferMappings",
+                \"LoadProcessBufdicts"]
         execute 'augroup '.aug
             autocmd!
         augroup END
@@ -799,14 +804,14 @@ function s:F.reg.register(regdict)
     endfor
     let regdict[plugname]=entry
     "{{{4 Создание функций
-    let F={}
+    let functions={}
     for fname in keys(s:F.cons)
-        execute      "function F.".fname."(...)\n".
+        execute      "function functions.".fname."(...)\n".
                     \"    return call(s:F.cons.".fname.", ".
                     \"             [".entry.intprefix."]+".
                     \"             a:000, {})\n".
                     \"endfunction"
-        let fnr=matchstr(string(F[fname]), '\d\+')
+        let fnr=matchstr(string(functions[fname]), '\d\+')
         let s:g.reg.unnamedfunctions[fnr]="cons:/".plid."/".fname
     endfor
     "{{{4 Создание привязок
@@ -815,12 +820,10 @@ function s:F.reg.register(regdict)
     endif
     "}}}4
     call s:F.comm.cf(entry)
-    "{{{4 au RegisterPluginPost
     call s:F.au.doevent("RegisterPluginPost", plid)
-    "}}}4
     return      {     "name": plugname,
                 \     "type": plugtype,
-                \"functions": F}
+                \"functions": functions}
 endfunction
 "{{{4 Проверки аргументов
 "{{{5 Проверка для command
@@ -860,6 +863,7 @@ let s:g.c.comdict=[[["equal", "nargs" ],   ["or", [["in", ['*',
             \                                 '^custom\(list\)\=,s:.*']]]],
             \        [["equal", "func"], ["regex", s:g.c.reg.rf]]]
 "{{{5 s:g.c.register
+let s:g.c.maptypereg='^['.join(keys(s:g.maps.mapcommands), "").']\+$'
 let s:g.c.intmaps=["dict", [[["regex", '^+\@!'],
             \                ["and", [["hkey", "function"],
             \                         ["dict", [[["equal", "function"],
@@ -871,12 +875,16 @@ let s:g.c.intmaps=["dict", [[["regex", '^+\@!'],
             \                                   [["equal", "leader"],
             \                                    ["bool", ""]],
             \                                   [["equal", "type"],
-            \                                    ["keyof",
-            \                                     s:g.maps.mapcommands]],
+            \                                    ["regex", s:g.c.maptypereg]],
             \                                   [["equal", "getc"],
             \                                    ["regex", s:g.c.reg.rf]],
             \                                   [["equal", "nochars"],
-            \                                    ["any", ""]]]]]
+            \                                    ["any", ""]],
+            \                                   [["equal", "remap"],
+            \                                    ["any", ""]],
+            \                                   [["equal", "operator"],
+            \                                    ["any", ""]],
+            \                                  ]]]
             \                ]]], s:g.p.c.intmaps]
 let s:g.c.plugtype=["keyof", s:g.reg.plugtypes, s:g.p.c.plugtype]
 let s:g.c.funclist=["alllst",
@@ -959,6 +967,38 @@ augroup LoadNewBuffer
     autocmd!
     autocmd BufAdd * call s:F.maps.newbuffer(expand("<abuf>"))
 augroup END
+"{{{3 maps.chkmap
+function s:F.maps.chkmap(buffer, type, mapstring, plid)
+    if a:buffer
+        let curbuffer=bufnr("%")
+        if           has_key(s:g.maps.created_buffer,curbuffer) &&
+                    \has_key(s:g.maps.created_buffer[curbuffer],a:type) &&
+                    \has_key(s:g.maps.created_buffer[curbuffer][a:type],
+                    \        a:mapstring) &&
+                    \
+                    \s:g.maps.created_buffer[curbuffer][a:type][a:mapstring][1].
+                    \'/'.
+                    \s:g.maps.created_buffer[curbuffer][a:type][a:mapstring][0]
+                    \!=#a:plid
+            return s:F.main.eerror(selfname, "perm", ["ebmap", a:mapstring,
+                        \s:g.maps.created_buffer[curbuffer][a:type][a:mapstring]
+                        \[1].'/'.
+                        \s:g.maps.created_buffer[curbuffer][a:type][a:mapstring]
+                        \[0]])
+        endif
+    else
+        if           has_key(s:g.maps.created_global,a:type) &&
+                    \has_key(s:g.maps.created_global[a:type], a:mapstring) &&
+                    \
+                    \s:g.maps.created_global[a:type][a:mapstring][1].'/'.
+                    \s:g.maps.created_global[a:type][a:mapstring][0]!=#a:plid
+            return s:F.main.eerror(selfname, "perm", ["egmap", a:mapstring,
+                        \s:g.maps.created_global[a:type][a:mapstring][1].'/'.
+                        \s:g.maps.created_global[a:type][a:mapstring][0]])
+        endif
+    endif
+    return 1
+endfunction
 "{{{3 maps.map
 function s:F.maps.map(plugdict, mapname, options, mapstring, buffer)
     let selfname="maps.map"
@@ -972,92 +1012,74 @@ function s:F.maps.map(plugdict, mapname, options, mapstring, buffer)
                     \                               a:plugdict.name])
     endif
     let mapoptions=a:options[a:mapname]
-    "{{{4 Тип привязки: определение команды
-    let type=" "
+    "{{{4 Режимы, в которых привязка действует
+    let types=[" "]
     if has_key(mapoptions, "type")
-        let type=mapoptions.type
+        let types=split(mapoptions.type, '\zs')
     endif
-    "{{{4 Проверка существования привязки
+    "{{{4 Создание привязки в указанных режимах
+    "{{{5 Объявление переменных: created и created_plugin
+    let curbuffer=bufnr("%")
+    let r=1
     if a:buffer
-        let curbuffer=bufnr("%")
-        if           has_key(s:g.maps.created_buffer,curbuffer) &&
-                    \has_key(s:g.maps.created_buffer[curbuffer],type) &&
-                    \has_key(s:g.maps.created_buffer[curbuffer][type],
-                    \        a:mapstring) &&
-                    \
-                    \s:g.maps.created_buffer[curbuffer][type][a:mapstring][1].
-                    \'/'.
-                    \s:g.maps.created_buffer[curbuffer][type][a:mapstring][0]
-                    \!=#a:plugdict.plid
-            return s:F.main.eerror(selfname, "perm", ["ebmap", a:mapstring,
-                        \s:g.maps.created_buffer[curbuffer][type][a:mapstring]
-                        \[1].'/'.
-                        \s:g.maps.created_buffer[curbuffer][type][a:mapstring]
-                        \[0]])
+        if !has_key(s:g.maps.created_buffer, curbuffer)
+            let s:g.maps.created_buffer[curbuffer]={}
         endif
+        let created=s:g.maps.created_buffer[curbuffer]
+        if !has_key(a:plugdict.buffermappings, curbuffer)
+            let a:plugdict.buffermappings[curbuffer]={}
+        endif
+        let created_plugin=a:plugdict.buffermappings[curbuffer]
     else
-        if           has_key(s:g.maps.created_global,type) &&
-                    \has_key(s:g.maps.created_global[type], a:mapstring) &&
-                    \
-                    \s:g.maps.created_global[type][a:mapstring][1].'/'.
-                    \s:g.maps.created_global[type][a:mapstring][0]
-                    \!=#a:plugdict.plid
-            return s:F.main.eerror(selfname, "perm", ["egmap", a:mapstring,
-                        \s:g.maps.created_global[type][a:mapstring][1].'/'.
-                        \s:g.maps.created_global[type][a:mapstring][0]])
+        let created=s:g.maps.created_global
+        let created_plugin=a:plugdict.globalmappings
+    endif
+    "{{{5 Основной цикл
+    for type in types
+        "{{{6 Пропустить привязку, если она уже занята другим дополнением
+        if !s:F.maps.chkmap(a:buffer, type, a:mapstring, a:plugdict.plid)
+            let r=0
+            continue
         endif
-    endif
-    let cmd=s:g.maps.mapcommands[type]
-    let mapcommand=cmd." <special> <expr> "
-    "{{{4 <buffer>
-    if a:buffer
-        let mapcommand.="<buffer> "
-    endif
-    "{{{4 <silent>
-    if has_key(mapoptions, "silent") && mapoptions.silent
-        let mapcommand.="<silent> "
-    endif
-    "{{{4 Основная часть команды
-    let mapcommand.=s:F.stuf.mapprepare(a:mapstring)." "
-    let mapcommand.='call(<SID>Eval("s:F.maps.run"), ['.
-                \"'".type."', ".
-                \s:F.stuf.mapprepare(s:F.stuf.squote(a:mapstring)).", ".
-                \((a:buffer)?(bufnr("%")):(-1)).
-                \'], {})'
-    "{{{4 Создание привязки, обработка ошибок
-    try
-        execute mapcommand
-        "{{{5 Создание записи о созданной привязке
+        "{{{6 Построение команды для execute: *map
+        let cmd=s:g.maps.mapcommands[type]
+        if has_key(mapoptions, "remap")
+            let cmd=substitute(cmd, 'nore', '', '')
+        endif
+        "{{{6 Построение команды для execute: <...>
+        let mapcommand=cmd." <special> <expr> "
         if a:buffer
-            let curbuffer=bufnr("%")
-            if !has_key(s:g.maps.created_buffer, curbuffer)
-                let s:g.maps.created_buffer[curbuffer]={}
+            let mapcommand.="<buffer> "
+        endif
+        if get(mapoptions, "silent", 0)
+            let mapcommand.="<silent> "
+        endif
+        "{{{6 Построение команды для execute: {lhs} и {rhs}
+        let mapcommand.=s:F.stuf.mapprepare(a:mapstring)." "
+        let mapcommand.='call(<SID>Eval("s:F.maps.run"), ['.
+                    \"'".type."', ".
+                    \s:F.stuf.mapprepare(s:F.stuf.squote(a:mapstring)).", ".
+                    \((a:buffer)?(bufnr("%")):(-1)).
+                    \'], {})'
+        "{{{6 Выполнение команды, сохранение записи
+        try
+            execute mapcommand
+            if !has_key(created, type)
+                let created[type]={}
             endif
-            let created=s:g.maps.created_buffer[curbuffer]
-            if !has_key(a:plugdict.buffermappings, curbuffer)
-                let a:plugdict.buffermappings[curbuffer]={}
+            if !has_key(created_plugin, type)
+                let created_plugin[type]={}
             endif
-            let created_plugin=a:plugdict.buffermappings[curbuffer]
-        else
-            let created=s:g.maps.created_global
-            let created_plugin=a:plugdict.globalmappings
-        endif
-        if !has_key(created, type)
-            let created[type]={}
-        endif
-        if !has_key(created_plugin, type)
-            let created_plugin[type]={}
-        endif
-        let centry = [a:plugdict.name, a:plugdict.type, a:mapname,
-                    \ copy(mapoptions)]
-        let created[type][a:mapstring]=centry
-        let created_plugin[type][a:mapstring]=centry
-        "}}}5
-        return 1
-    catch
-        return s:F.main.eerror(selfname, "ofail", v:exception)
-    endtry
-    "}}}4
+            let centry = [a:plugdict.name, a:plugdict.type, a:mapname,
+                        \ copy(mapoptions)]
+            let created[type][a:mapstring]=centry
+            let created_plugin[type][a:mapstring]=centry
+        catch
+            let r=0
+            call s:F.main.eerror(selfname, "ofail", v:exception)
+        endtry
+    endfor
+    return r
 endfunction
 "{{{3 maps.create
 function s:F.maps.create(plugdict)
@@ -1098,8 +1120,31 @@ function s:F.maps.create(plugdict)
     "}}}4
     return 1
 endfunction
+"{{{3 s:Opfunc
+function s:Opfunc(...)
+    if a:0
+        setlocal operatorfunc=
+        if !empty(s:g.maps.op.args)
+            let args=remove(s:g.maps.op.args, 0, -1)
+            let args+=[a:1]
+            if s:g.maps.op.mode=~#"^[vV\<C-v>]"
+                let args+=[getpos("'<"), getpos("'>")]
+            else
+                let args+=[getpos("'["), getpos("']")]
+            endif
+            return call(s:F.maps.run, args, {})
+        endif
+    else
+        return matchstr(expand('<sfile>'), '\S\+$')
+    endif
+endfunction
+let s:F.int["s:Opfunc"]=function("s:Opfunc")
+let s:g.maps.op.func=s:Opfunc()
+lockvar!  s:g.maps.op.func
+lockvar 1 s:g.maps.op
 "{{{3 maps.run
-function s:F.maps.run(type, mapstring, buffer)
+function s:F.maps.run(type, mapstring, buffer, ...)
+    "{{{4 Получение информации о привязке
     if a:buffer==-1
         let [plugname, plugtype, mapname, mapoptions]=
                     \             s:g.maps.created_global[a:type][a:mapstring]
@@ -1107,39 +1152,65 @@ function s:F.maps.run(type, mapstring, buffer)
         let [plugname, plugtype, mapname, mapoptions]=
                     \   s:g.maps.created_buffer[a:buffer][a:type][a:mapstring]
     endif
+    "{{{4 operator
+    let operator=has_key(mapoptions, "operator")
+    if operator && !a:0
+        let &l:operatorfunc=s:g.maps.op.func
+        let s:g.maps.op.args=[a:type, a:mapstring, a:buffer]
+        let s:g.maps.op.mode=mode()
+        if mode()=~#"^[sS\<C-s>iR]"
+            return "\<C-o>g@"
+        else
+            return 'g@'
+        endif
+    endif
+    "{{{4 Получение словаря дополнения
     let plugdict=s:F.comm.getpldict(plugname, plugtype)
     if plugdict.status!=#"loaded"
         call s:F.comm.load(plugname, plugtype)
     endif
+    "}}}4
+    let args=[a:type, mapname, a:mapstring, a:buffer]+a:000
+    let d={"F": eval("plugdict.F.".(mapoptions.function))}
+    "{{{4 Получение дополнительных символов
     if has_key(mapoptions, 'getc')
-        let r   =   {"type":   a:type,
-                    \"name":     mapname,
+        "{{{5 Объявление переменных
+        "{{{6 a: словарь для функции получения символа
+        let a   =   {  "type": a:type,
+                    \  "name":   mapname,
                     \"string": a:mapstring,
                     \"buffer": a:buffer,
-                    \"self":   eval("plugdict.F.".(mapoptions.getc))}
+                    \  "self": eval("plugdict.F.".(mapoptions.getc))}
+        if a:0
+            let a.mottype=a:1
+        endif
+        "{{{6 timeout: максимальное время ожидания следующего символа
         if &timeout && has("float") && has("reltime")
             let timeout=&timeoutlen/1000.0
             let time=reltime()
         endif
+        "{{{6 laststatus: 1, если необходим хотя бы один дополнительный символ
         let laststatus=((has_key(mapoptions, "nochars"))?(2):(1))
         if laststatus==2
-            let last2=[0, deepcopy(r)]
+            let last2=[0, deepcopy(a)]
         endif
+        "}}}6
         let chars=[]
         let prevstatus=0
+        "{{{5 Основной цикл
         while ((exists("time"))?
                     \(eval(reltimestr(reltime(time)))<timeout):
                     \(1))
-            if getchar(1)
+            if getchar(1) || laststatus==1
                 let char=getchar()
                 if type(char)==type(0)
                     let char=nr2char(char)
                 endif
                 call add(chars, char)
                 let prevstatus=laststatus
-                let laststatus=r.self(r, char)
+                let laststatus=a.self(a, char)
                 if laststatus==2
-                    let last2=[len(chars), deepcopy(r)]
+                    let last2=[len(chars), deepcopy(a)]
                 elseif laststatus==0
                     break
                 else
@@ -1157,43 +1228,51 @@ function s:F.maps.run(type, mapstring, buffer)
                 sleep 50m
             endif
         endwhile
-        let addchars=""
+        "{{{5 «Лишние» символы
         if exists("last2") && len(chars)>last2[0]
-            let addchars.=join(chars[last2[0]:], "")
+            let addchars=join(chars[last2[0]:], "")
+            let a=last2[1]
         endif
-        return call(eval("plugdict.F.".(mapoptions.function)),
-                    \[a:type, mapname, a:mapstring, a:buffer, r], {}).addchars
-    else
-        return call(eval("plugdict.F.".(mapoptions.function)),
-                    \[a:type, mapname, a:mapstring, a:buffer], {})
+        call add(args, a)
     endif
+    "{{{4 Получение возвращаемого значения
+    let r=call(d.F, args, {})
+    if exists('addchars')
+        let r.=addchars
+    endif
+    return r
 endfunction
 "{{{3 maps.unmap
 function s:F.maps.unmap(plugname, plugtype, mapname, mapoptions, mapstring,
             \           buffer)
     let selfname='maps.unmap'
-    let type=" "
+    let types=[" "]
     if has_key(a:mapoptions, "type")
-        let type=a:mapoptions.type
+        let types=split(a:mapoptions.type, '\zs')
     endif
-    let unmapcommand=substitute(s:g.maps.mapcommands[type], 'nore', 'un', '').
-                \" <special> ".((a:buffer!=-1)?("<buffer> "):("")).
-                \s:F.stuf.mapprepare(a:mapstring)
-    try
-        execute unmapcommand
-        if a:buffer==-1
-            unlet s:g.reg.registered[a:plugtype][a:plugname].globalmappings
-                        \[type][a:mapstring]
-            unlet s:g.maps.created_global[type][a:mapstring]
-        else
-            unlet s:g.reg.registered[a:plugtype][a:plugname].buffermappings
-                        \[a:buffer][type][a:mapstring]
-            unlet s:g.maps.created_buffer[a:buffer][type][a:mapstring]
-        endif
-        return 1
-    catch
-        return s:F.main.eerror(selfname, "ofail", v:exception)
-    endtry
+    let r=1
+    for type in types
+        let unmapcommand=
+                    \substitute(s:g.maps.mapcommands[type], 'nore', 'un', '').
+                    \" <special> ".((a:buffer!=-1)?("<buffer> "):("")).
+                    \s:F.stuf.mapprepare(a:mapstring)
+        try
+            execute unmapcommand
+            if a:buffer==-1
+                unlet s:g.reg.registered[a:plugtype][a:plugname].globalmappings
+                            \[type][a:mapstring]
+                unlet s:g.maps.created_global[type][a:mapstring]
+            else
+                unlet s:g.reg.registered[a:plugtype][a:plugname].buffermappings
+                            \[a:buffer][type][a:mapstring]
+                unlet s:g.maps.created_buffer[a:buffer][type][a:mapstring]
+            endif
+        catch
+            let r=0
+            call s:F.main.eerror(selfname, "ofail", v:exception)
+        endtry
+    endfor
+    return r
 endfunction
 "{{{3 maps.delmappings
 function s:F.maps.delmappings(what)
@@ -1252,6 +1331,7 @@ function s:F.maps.delmappings(what)
 endfunction
 "{{{3 maps.newbuffer
 function s:F.maps.newbuffer(buffer)
+    let s:g.maps.created_buffer[a:buffer]={}
     for plugtype in keys(s:g.reg.registered)
         for plugdict in values(s:g.reg.registered[plugtype])
             let [bmaps, gmaps, options]=s:F.cons.option(plugdict, "_maps")
@@ -2252,11 +2332,10 @@ let s:g.reginfo=s:F.reg.register({
             \   "scriptfile": s:g.load.scriptfile,
             \      "oneload": 1,
             \"dictfunctions": s:g.comm.f,
-            \   "apiversion": "0.9",
+            \   "apiversion": "0.10",
         \})
 lockvar! s:g.reginfo
-let s:F.main.eerror=s:g.reginfo.functions.eerror
-let s:F.main.option=s:g.reginfo.functions.option
+call extend(s:F.main, s:g.reginfo.functions)
 unlet s:g.load
 " let s:F.plug.comp=s:F.comm.getfunctions("comp")
 let s:F.plug.comp=s:F.comm.lazyload("comp", "plugin", "dictfunctions")

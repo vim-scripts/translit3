@@ -461,27 +461,39 @@ mappings :: {{MapName}: {MapOptions}}                    *load-reg-mappings*
                    !          noremap!
                   n, v, x, s, o, i, l, c
                               {Type}noremap
+                  In order to specify more then one type, just concatenate 
+                  characters. For example, to specify one mapping both for 
+                  visual and normal mode, use "nv".
                                                            *load-map-silent*
         silent    Bool. If true, then <silent> argument is added to the map 
                   command.
+                                                            *load-map-remap*
+        remap     If this key is present, then *map commands will be used 
+                  instead of *noremap commands when defining a mapping. See 
+                  |noremap| and |recursive_mapping|.
                                                            *load-map-leader*
         leader    Bool. If true, then either |load-reg-leader| or 
                   |load-opt-_leader| is prepended to the default mapping.
                                                              *load-map-getc*
         getc      String, just like in |load-map-function|. If it is present, 
-                  then before mapping is invoked, vimpluginloader will use 
-                  this function to obtain additional keys like this: it will 
-                  call this function with a dictionary and a key obtained from 
-                  user as arguments and check for return value: 0 means `abort 
-                  mapping' (unless this function previously returned 2; all 
-                  characters starting from the one that caused function to 
-                  return 0 are appended to value returned by 
-                  |load-map-function|); 1 means `character accepted, need more 
-                  characters'; 2 means `character accepted, use 'timeoutlen' 
-                  to obtain optional values' (invokes main mapping function 
-                  after 'timeoutlen' microseconds passed after last obtained 
-                  character); 3 means `character accepted, no more characters 
-                  needed' (invokes |load-map-function| immediately). 
+                  then before mapping function is invoked, vimpluginloader 
+                  will use getc function to obtain additional keys like this: 
+                  it will call this function with a dictionary and a key 
+                  obtained from user as arguments and check for return value:
+                  0 either aborts mapping (if no characters were accepted) or 
+                    causes it to use previously accepted string (from the 
+                    first character to the last charactor for which 2 was 
+                    returned, subsequent characters are appended to the result 
+                    of |load-map-function|). Note that vimpluginloader will 
+                    use deep copy of a dictionary which was used as an 
+                    argument to getc function (see |deepcopy()|).
+                  1 accepts current character and tells vimpluginloader that 
+                    more characters are required.
+                  2 accepts current character and tells vimpluginloader that 
+                    more characters can be accepted (it will take 'timeout' 
+                    and 'timeoutlen'  options into account).
+                  3 accepts current character and invokes |load-map-function| 
+                    immediately.
                   Dictionary is preserved for the current key sequence, so 
                   this function must store its `static' variables there. If 
                   this key is present, then this dictionary will be the fifth 
@@ -489,23 +501,51 @@ mappings :: {{MapName}: {MapOptions}}                    *load-reg-mappings*
                   initialized with the following keys:
                   Key      Description ~
                   type     Type (|load-map-type|) of the mapping (first 
-                           argument of |load-map-function| without getc).
+                           argument of |load-map-function|): mode from which 
+                           mapping is called. Note that for
+                           '<Space>' (normal+visual+operator-pending),
+                           'v' (visual+select), '!' (insert+command-line) and
+                           'l' (insert+command-line+lang-arg) mappings, it 
+                           will always be equal to one value, use |mode()| for 
+                           more precise results. There will be difference if 
+                           you define mapping with `type' containing more then 
+                           one character.
                   name     Name (key of |load-reg-mappings| dictionary) of the 
-                           mapping (second argument of |load-map-function| 
-                           without getc).
+                           mapping (second argument of |load-map-function|).
                   string   Sequence of keys which was used to invoke the 
-                           mapping (third argument of |load-map-function| 
-                           without getc).
+                           mapping (third argument of |load-map-function|).
                   buffer   Buffer number (if the mapping is local to buffer) 
                            or -1 (if mapping is global) (fourth argument of 
-                           |load-map-function| without getc).
+                           |load-map-function|).
                   self     Reference to getc function itself.
+                  mottype  For |load-map-operator| mappings: type of the 
+                           motion (fifth argument to |load-map-function|).
+
                   Note that in order to work correctly, this option requires 
                   |+float| and |+reltime| features. In case they are absent, 
                   plugin works like if 'timeout' was unset.
                                                           *load-map-nochars*
         nochars   If it is present, then mappings that use getc also accept 
-                  zero length additional string.
+                  zero additional characters.
+                                                         *load-map-operator*
+        operator  If it is present, then |load-map-function| is considered to 
+                  be an operator function, so it will be invoked outside of 
+                  |textlock| and get three additional arguments: type of 
+                  motion operated upon (see |g@|), position of the first 
+                  character operated upon (obtained via |getpos()|), position 
+                  of the last character operated upon. For normal mode it uses 
+                  getpos("'[") and getpos("']"), for visual mode it uses 
+                  getpos("'<") and getpos("'>") because getpos("']") will not 
+                  return column that is past the end-of-line (but it matters 
+                  whether EOL is included or not).
+                  Note: for |insert-mode|, |Replace-mode| and |select-mode| it 
+                  will use <C-o>g@ (thus temporary changing the mode, see 
+                  |i_CTRL-O| and |v_CTRL-O|) to invoke an operator function 
+                  because using g@ does not make sense in this modes. It will 
+                  use |g@| for other modes including such modes as 
+                  |Command-line|, |Ex| and others where |g@| means something 
+                  different from `invoke an operator function'.
+
 leader :: String                                           *load-reg-leader*
         Defines the mapping leader.
 sid :: String                                            *load-reg-scriptid*

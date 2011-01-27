@@ -49,17 +49,18 @@ elseif !exists("s:g._pluginloaded")
                 \'extend(s:g.extfuncdicts, {v:val[0]: v:val[2]})')
     "{{{2 Привязки
     let s:g._load.mappings={}
-    let s:mappings=[["Transliterate",     'i', '' ],
-                \   ["CmdTransliterate",  'c', '' ],
-                \   ["TransliterateWord", 'i', 'w'],
-                \   ["TransliterateWORD", 'i', 'W'],
-                \   ["StartToF",          'n', 's'],
-                \   ["StopToF",           'n', 'S'],
-                \   ["TranslitReplace",   ' ', 'r'],
-                \   ["TranslitToNext",    ' ', 't'],
-                \   ["TranslitToPrev",    ' ', 'T'],
-                \   ["TranslitNext",      ' ', 'f'],
-                \   ["TranslitPrev",      ' ', 'F'],
+    let s:mappings=[["Transliterate",         'i', '' ],
+                \   ["CmdTransliterate",      'c', '' ],
+                \   ["TransliterateWord",     'i', 'w'],
+                \   ["TransliterateWORD",     'i', 'W'],
+                \   ["TransliterateMotion",  'nx', 'v'],
+                \   ["StartToF",              'n', 's'],
+                \   ["StopToF",               'n', 'S'],
+                \   ["TranslitReplace",      'nx', 'r'],
+                \   ["TranslitToNext",      'nxo', 't'],
+                \   ["TranslitToPrev",      'nxo', 'T'],
+                \   ["TranslitNext",        'nxo', 'f'],
+                \   ["TranslitPrev",        'nxo', 'F'],
                 \]
     for [s:map, s:mode, s:key] in s:mappings
         let s:g._load.mappings[s:map]={
@@ -73,15 +74,16 @@ elseif !exists("s:g._pluginloaded")
         endif
         unlet s:map s:mode s:key
     endfor
+    let s:g._load.mappings.TransliterateMotion.operator=1
     unlet s:mappings
     "{{{2 Регистрация дополнения
     let s:F.plug.load=load#LoadFuncdict()
     let s:g._load.leader='\t'
-    let s:g._load.requires=[["stuf", '0.4'],
-                \           ["comp", '0.2'],
-                \           ["load", '0.9'],
-                \           ["json", '0.0'],
-                \           ["chk",  '0.3']]
+    let s:g._load.requires=[["stuf", '0.4' ],
+                \           ["comp", '0.2' ],
+                \           ["load", '0.10'],
+                \           ["json", '0.0' ],
+                \           ["chk",  '0.3' ]]
     let s:g._load.preload=[["fileutils", "autoload"],
                 \          ["os",        "autoload"]]
     let s:g._load.reginfo=s:F.plug.load.registerplugin(s:g._load)
@@ -136,7 +138,8 @@ let s:g.p={
             \                 "Кэш для транслитерации по мере ввода"],
             \   },
             \   "trsrc": {
-            \        "var": "Переменная",
+            \       "gvar": "Переменная",
+            \       "bvar": "Переменная %s буфера",
             \       "file": "Файл",
             \       "func": "Функция",
             \       "dict": "Анонимный словарь",
@@ -189,7 +192,8 @@ let s:g.p={
             \       "trans": ["Table source", "Print cache", "ToF cache"],
             \   },
             \   "trsrc": {
-            \        "var": "Variable",
+            \       "gvar": "Variable",
+            \       "bvar": "Variable %s local to buffer",
             \       "file": "File",
             \       "func": "Function reference",
             \       "dict": "Unnamed dictionary",
@@ -343,9 +347,13 @@ function s:F.comm.save(transsymb)
     let src=(a:transsymb.source[0])
     if src=="file"
         return s:F.plug.json.dump(a:transsymb.source[1], a:transsymb.origin)
-    elseif src=="var"
+    elseif src=="gvar"
         execute "let ".a:transsymb.source[1]."=a:transsymb.origin"
-        return 1
+    elseif src=="bvar"
+        if bufexists(a:transsymb.source[1][0])
+            call call('setbufvar', a:transsymb.source[1]+[a:transsymb.origin])
+            return 1
+        endif
     elseif src=="func"
         return call(a:transsymb.source[1], [a:transsymb.origin], {})
     endif
@@ -534,7 +542,11 @@ function s:F.comm.gettranssymb(...)
         if d.Trans=~#'^[gb]:[a-zA-Z_]\(\w\@<=\.\w\|\w\)*$'
             if exists(d.Trans)
                 let rettrans=eval(d.Trans)
-                let src=["var", d.Trans]
+                if d.Trans[0]==#'b'
+                    let src=["bvar", [bufnr('%'), d.Trans[2:]]]
+                else
+                    let src=["gvar", d.Trans]
+                endif
             else
                 return s:F.main.eerror(selfname, "value", ["trans"])
             endif
@@ -607,7 +619,7 @@ function s:F.comm.gettranssymb(...)
     " когда изменения в исходный словарь внесены, но ещё не внесены 
     " в преобразованный словарь
     call s:F.comm.newcache(rettrans, result)
-    if index(["file", "var"], curtrans.source[0])!=-1 &&
+    if index(["file", "gvar", "bvar"], curtrans.source[0])!=-1 &&
                 \index(s:g.comp.lst.transsymb, curtrans.source[1])==-1
         call add(s:g.comp.lst.transsymb, curtrans.source[1])
     endif
@@ -1857,7 +1869,6 @@ function s:F.prnt.main(columns, transsymb)
     "}}}4
 endfunction
 "{{{2 out:  внешние функции
-"{{{3 s:g.out
 let s:g.out={
             \"add": 'call(s:F.mod.main, ["add", a:000[-1]]+a:000[0:2], {})',
             \"del": 'call(s:F.mod.main, ["del", a:000[-1]]+a:000[0:1], {})',
@@ -1877,19 +1888,7 @@ for [s:key, s:val] in items(s:g.out)
 endfor
 unlet s:key
 unlet s:val
-"{{{3 out._trlines: транслитерировать строчки(у) целиком
-function s:F.out._trlines(startline, endline, transsymb)
-    let savedureg=@"
-    let [startline, endline]=sort([a:startline, a:endline])
-    let s:g.tmp=a:transsymb
-    execute "normal! ".startline."gg\"t".(endline-startline+1)."S".
-                \"\<C-r>=s:F.trs.main(@t,s:g.tmp)\<CR>"
-    let s:g.tmp={}
-    " Удалить лишную новую строку
-    delete _
-    let @"=savedureg
-    return @t
-endfunction
+unlet s:g.out
 "{{{2 mng:  управление плагином
 "{{{3 mng.tof: управление транслитерацией по мере ввода
 function s:F.mng.tof(bang, action, ...)
@@ -1971,8 +1970,11 @@ function s:F.mng.cache(action, ...)
             call add(lines, [])
             "{{{6 Первый столбец — источник таблицы
             let source=(s:g.cache.trans[1][i].source)
-            if source[0]==#"var"
-                call add(lines[-1], s:g.p.cache.trsrc.var." ".source[1])
+            if source[0]==#"gvar"
+                call add(lines[-1], s:g.p.cache.trsrc.gvar." ".source[1])
+            elseif source[0]==#"bvar"
+                call add(lines[-1], printf(s:g.p.cache.trsrc.bvar,
+                            \              source[1][1])." ".source[1][0])
             elseif source[0]==#"func"
                 call add(lines[-1], s:g.p.cache.trsrc.func." ".
                             \       substitute(string(source[1]),
@@ -2014,68 +2016,41 @@ endfunction
 "{{{4 s:g.mng.main
 let s:g.mng={}
 let s:g.mng.main={
-            \"add": 's:F.mod.main("add", args[-1].to, args[1], args[2], bang)',
-            \"del": 's:F.mod.main("del", args[-1].from, args[0], bang)',
+            \"add": 's:F.mod.main("add", args[-1].to,   args[0],args[1], bang)',
+            \"del": 's:F.mod.main("del", args[-1].from, args[0],         bang)',
             \"setoption": 's:F.mod.main("setoption", args[-1].in, '.
-            \                           'args[-1].for, args[1], args[2], bang)',
+            \                           'args[-1].for,  args[0],args[1], bang)',
             \"deloption": 's:F.mod.main("setoption", args[-1].in, '.
-            \                           'args[-1].for, args[1], 0, 2)',
-            \"save": 's:F.comm.save(transsymb)',
-            \"tof": 'call(s:F.mng.tof, [bang]+args[1:], {})',
-            \"cache": 'call(s:F.mng.cache, args[1:], {})',
+            \                           'args[-1].for,  args[0],0,       2)',
+            \"save":  's:F.comm.save(transsymb)',
+            \"tof":   'call(s:F.mng.tof,  [bang]+args, {})',
+            \"cache": 'call(s:F.mng.cache,       args, {})',
         \}
 let s:g.mng.main.delete=s:g.mng.main.del
+let s:g.mng.rewritemode={"v": 'char',
+            \            "V": 'line',
+            \       "\<C-v>": 'block',}
 "}}}4
 function s:F.mng.main(bang, startline, endline, ...)
     "{{{4 Объявление переменных
     let bang=(a:bang=='!')
     "{{{4 Проверка ввода
     let args=s:F.plug.chk.checkarguments(s:g.c.cmd, a:000)
-    let action=args[0]
     if type(args)!=type([])
         return 0
     endif
+    let action=remove(args, 0)
     "{{{4 Действия
     "{{{5 Транслитерировать
     if action==#"transliterate"
-        "{{{6 Транслитерировать строчки(у) целиком
-        if a:000[0]==?"lines"
-            return s:F.out._trlines(a:startline, a:endline, args[-1].using)
-            "{{{6 Транслитерировать выделение
-        elseif a:000[0]==?"selection"
-            "{{{7 Построчное выделение
-            if visualmode()==#"V"
-                return s:F.out._trlines(line("'<"), line("'>"),
-                            \args[-1].using)
-            "{{{7 Выделенный диапозон
-            elseif visualmode()==#"v"
-                let savedureg=@"
-                let s:g.tmp=args[-1].using
-                execute "normal! gv\"tc\<C-r>=".
-                            \"s:F.trs.main(@t,s:g.tmp)\<CR>"
-                unlet s:g.tmp
-                let @"=savedureg
-            "{{{7 Выделенный блок
-            elseif visualmode()==#"\<C-v>"
-                let savedureg=@"
-                normal! gv"ty
-                let savedtreg=@t
-                let [startline, endline]=sort([line("'<"), line("'>")])
-                let   curline=startline
-                let [startcol, endcol]=sort([virtcol("'<"), virtcol("'>")])
-                let  enddiff=endcol-(&selection=="exclusive")-
-                            \startcol+1
-                let s:g.tmp=args[-1].using
-                while curline<=endline
-                    execute "normal! ".curline."gg".
-                                \startcol."|\"t".enddiff."s\<C-r>=".
-                                \   "s:F.trs.main(@t,s:g.tmp)\<CR>"
-                    let curline+=1
-                endwhile
-                unlet s:g.tmp
-                let @t=savedtreg
-                let @"=savedureg
-            endif
+        if args[0]==?"lines"
+            return s:F.map.translitselection('line', [0, 1, a:startline, 0],
+                        \                            [0, 1, a:endline,   0],
+                        \                    args[-1].using)
+        elseif args[0]==?"selection"
+            return s:F.map.translitselection(s:g.mng.rewritemode[visualmode()],
+                        \                    getpos("'<"), getpos("'>"),
+                        \                    args[-1].using)
         endif
     "{{{5 Напечатать таблицу транслитерации
     elseif action==#"print"
@@ -2334,8 +2309,221 @@ let s:g.map.actions={
             \"TranslitToPrev":    's:F.map.doonchar("T", a:1.result)',
             \"TranslitNext":      's:F.map.doonchar("f", a:1.result)',
             \"TranslitPrev":      's:F.map.doonchar("F", a:1.result)',
+            \"TransliterateMotion":
+            \   's:F.map.translitselection(a:1, a:2, a:3, transsymb)',
         \}
 let s:g.map.actions.CmdTransliterate=s:g.map.actions.Transliterate
+"{{{3 map.getvrange
+function s:F.map.getvrange(start, end)
+    let [sline, scol]=a:start
+    let [eline, ecol]=a:end
+    let text=[]
+    let ellcol=col([eline, '$'])
+    let slinestr=getline(sline)
+    if sline==eline
+        if ecol>=ellcol
+            call extend(text, [slinestr[(scol-1):], ""])
+        else
+            call add(text, slinestr[(scol-1):(ecol-1)])
+        endif
+    else
+        call add(text, slinestr[(scol-1):])
+        let elinestr=getline(eline)
+        if (eline-sline)>1
+            call extend(text, getline(sline+1, eline-1))
+        endif
+        if ecol<ellcol
+            call add(text, elinestr[:(ecol-1)])
+        else
+            call extend(text, [elinestr, ""])
+        endif
+    endif
+    return text
+endfunction
+"{{{3 map.delvrange
+function s:F.map.delvrange(start, end)
+    let [sline, scol]=a:start
+    let [eline, ecol]=a:end
+    let ellcol=col([eline, '$'])
+    let slinestr=getline(sline)
+    if sline==eline
+        if ecol>=ellcol
+            call setline(sline, slinestr[:(scol-2)].getline(sline+1))
+            execute (sline+1)."delete _"
+        else
+            call setline(sline, slinestr[:(scol-2)].
+                        \       slinestr[(ecol):])
+        endif
+    else
+        call setline(sline, slinestr[:(scol-2)])
+        let elinestr=getline(eline)
+        if ecol<ellcol
+            call setline(eline, elinestr[(ecol):])
+        else
+            execute eline."delete _"
+        endif
+        if (eline-sline)>1
+            execute (sline+1).",".(eline-1)."delete _"
+        endif
+        execute sline."normal! gJ"
+    endif
+endfunction
+"{{{3 map.insertatposition
+function s:F.map.insertatposition(pos, text)
+    if empty(a:text)
+        return
+    endif
+    let [line, col]=a:pos
+    let linestr=getline(line)
+    let lstr=linestr[:(col-2)]
+    let rstr=linestr[(col-1):]
+    if len(a:text)==1
+        call setline(line, lstr.a:text[0].rstr)
+    else
+        call setline(line, lstr.a:text[0])
+        call append(line, a:text[1:-2]+[a:text[-1].rstr])
+    endif
+endfunction
+"{{{3 map.nullnl
+" Convert between lines (NL separated strings with NULLs represented as NLs) and 
+" NULL separated strings with NLs represented by NLs.
+function s:F.map.nullnl(text)
+    let r=[]
+    for line in a:text
+        let nlsplit=split(line, "\n", 1)
+        if empty(r)
+            call extend(r, nlsplit)
+        else
+            let r[-1].="\n".nlsplit[0]
+            call extend(r, nlsplit[1:])
+        endif
+    endfor
+    return r
+endfunction
+"{{{3 map.trwithnulls
+function s:F.map.trwithnulls(str, transsymb)
+    return join(map(split(a:str, "\n", 1), 's:F.trs.main(v:val, a:transsymb)'),
+                \"\n")
+endfunction
+"{{{3 map.translitselection
+function s:F.map.translitselection(type, start, end, transsymb)
+    "{{{4 Сохранение позиции курсора
+    let view=winsaveview()
+    let vcol=virtcol('.')
+    "{{{4 Объявление переменных
+    let [sline, scol, soff]=a:start[1:]
+    let [eline, ecol, eoff]=a:end[1:]
+    "{{{4 Транслитерация набора линий
+    if a:type==#'line'
+        if sline>eline
+            let [sline, eline]=[eline, sline]
+        endif
+        let line=sline
+        while line<=eline
+            call setline(line, s:F.map.trwithnulls(getline(line), a:transsymb))
+            let line+=1
+        endwhile
+    "{{{4 Транслитерация символьного диапозона
+    elseif a:type==#'char'
+        if sline>eline || (sline==eline && scol>ecol)
+            let [sline, scol, eline, ecol]=[eline, ecol, sline, scol]
+        endif
+        let lchar=len(matchstr(getline(eline), '\%'.ecol.'c.'))
+        if lchar>1
+            let ecol+=lchar-1
+        endif
+        let text=s:F.map.getvrange([sline, scol], [eline, ecol])
+        call s:F.map.delvrange([sline, scol], [eline, ecol])
+        let ttext=s:F.map.nullnl(map(s:F.map.nullnl(text),
+                    \                's:F.trs.main(v:val, a:transsymb)'))
+        call s:F.map.insertatposition([sline, scol], ttext)
+    "{{{4 Транслитерация прямоугольного блока
+    elseif a:type==#'block'
+        "{{{5 Сохранение значений настроек
+        if has("virtualedit")
+            let savedve=&virtualedit
+        endif
+        if has("folding")
+            let savedfe=&l:foldenable
+        endif
+        "{{{5 Объявление переменных
+        let svcol=virtcol([sline, scol])+soff
+        let evcol=virtcol([eline, ecol])+eoff
+        if sline>eline
+            let [sline, eline]=[eline, sline]
+        endif
+        if svcol>evcol
+            let [svcol, evcol]=[evcol, svcol]
+        endif
+        let line=sline
+        try
+            "{{{5 Основной цикл
+            while line<=eline
+                "{{{6 Получение позиций в текущей строке
+                keepjumps execute line
+                keepjumps execute "normal! ".svcol."|"
+                let [sccol, scoff]=getpos('.')[2:]
+                if sccol>=col([line, '$'])
+                    let line+=1
+                    continue
+                endif
+                keepjumps execute "normal! ".evcol."|"
+                let [eccol, ecoff]=getpos('.')[2:]
+                "{{{6 Используемые строковые переменные
+                let linestr=getline(line)
+                let lstr=linestr[:(sccol-2)]
+                let rstr=""
+                let tstr=""
+                "{{{6 Начало попадает внутрь длинного символа
+                if scoff>0
+                    let cscharlen=len(matchstr(linestr, '.', sccol-1))
+                    let cscharwidth=virtcol([line, sccol+cscharlen])-
+                                \   virtcol([line, sccol])
+                    if cscharwidth<0
+                        let csharwidth+=virtcol([line, '$'])
+                    endif
+                    let lstr.=repeat(" ", scoff)
+                    let tstr.=repeat(" ", cscharwidth-scoff)
+                    let sccol+=cscharlen
+                endif
+                "}}}6
+                let cechar=matchstr(linestr, '.', eccol-1)
+                let cecharlen=len(cechar)
+                let tstr.=linestr[(sccol-1):(eccol-2)]
+                if cecharlen>0
+                    "{{{6 Конец попадает внутрь длинного символа
+                    if ecoff>1
+                        let cecharwidth=virtcol([line, eccol+cecharlen])-
+                                    \   virtcol([line, eccol])
+                        if cecharwidth<0
+                            let cecharwidth+=virtcol([line, '$'])
+                        endif
+                        let rstr.=repeat(" ", cecharwidth-ecoff)
+                        let tstr.=repeat(" ", ecoff)
+                    "}}}6
+                    else
+                        let tstr.=cechar
+                    endif
+                    let rstr.=linestr[(eccol+cecharlen-1):]
+                endif
+                call setline(line,
+                            \lstr.(s:F.map.trwithnulls(tstr, a:transsymb)).rstr)
+                let line+=1
+            endwhile
+        "{{{5 Восстановление значений настроек
+        finally
+            if has("virtualedit")
+                let &virtualedit=savedve
+            endif
+            if has("folding")
+                let &l:foldenable=savedfe
+            endif
+        endtry
+    endif
+    "{{{5 Восстановление позиции курсора
+    call winrestview(view)
+    keepjumps execute "normal! ".vcol."|"
+endfunction
 "{{{3 map.input
 let [s:F.map.input, s:g.map.delinput]=
             \s:F.plug.stuf.cinput("translit", "Translit: ",
@@ -2412,7 +2600,11 @@ endfunction
 "{{{3 map.doonchar
 function s:F.map.doonchar(command, char)
     if a:command==#'r'
-        return 's'.a:char."\e"
+        if a:char=~#'^.$'
+            return 'r'.a:char
+        endif
+        let c=((v:count>1)?(v:count):(1)):
+        return 's'.repeat(a:char, c)."\e"
     else
         if a:char=~#'^.$'
             return a:command.a:char
@@ -2473,7 +2665,7 @@ function s:F.map.doonchar(command, char)
 endfunction
 "{{{3 map.runmap
 function s:F.map.runmap(type, mapname, mapstring, buffer, ...)
-    if !a:0
+    if a:0!=1
         let transsymb=s:F.comm.gettranssymb()
     endif
     if a:mapname==#"StartToF"
@@ -2494,7 +2686,6 @@ endfunction
 lockvar! s:g
 unlockvar! s:g.cache.trans
 unlockvar! s:g.tof.mutable
-unlockvar! s:g.tmp
 unlockvar! s:g.comp.lst.transsymb
 unlockvar! s:g.comp.inputwords
 "{{{1

@@ -70,8 +70,7 @@ CONTENTS                                                       *tr3-contents*
                 В зависимости от {target}, транслитерировать либо выделение 
                 ({target}==selection), либо диапозон линий ({target}==lines). 
                 Если диапозон не указан, то транслитерировать строку под 
-                курсором. Транслитерировать выделенный блок не рекомендуется, 
-                если настроен автоматический перенос строк.
+                курсором.
 :Tr3Command[!] tof start [{transsymb}]                 *tr3-action-tof-start*
                 Установить режим транслитерации по мере ввода для текущего 
                 буфера (вариант с восклицательным знаком — для всех буферов).
@@ -211,42 +210,44 @@ Tr3print({columns}[, {transsymb}])                               *Tr3print()*
 клавиши или <_leader> (по умолчанию: «\t»), см. |load-opt-_maps| 
 и |load-opt-_leader| соответственно):
 
-Имя привязки    Клавиши по умолчанию и описание ~
-CmdTransliterate                              *tr3-mapping-CmdTransliterate*
+Имя привязки    (Режим(ы)), клавиши по умолчанию и описание ~
+CmdTransliterate (c)                          *tr3-mapping-CmdTransliterate*
                 По умолчанию: <_leader>. Показывает приглашение ко вводу, 
                 транслитерирует введённую пользователем строку и вставляет 
                 результат транслитерации. В отличие от 
                 |tr3-mapping-Transliterate|, определяет привязку для командной 
                 строки.
-Transliterate                                    *tr3-mapping-Transliterate*
+Transliterate   (i)                              *tr3-mapping-Transliterate*
                 По умолчанию: <_leader>. Показывает приглашение ко вводу, 
                 транслитерирует введённую пользователем строку и вставляет 
                 результат транслитерации. Эта привязка, так же как и все 
                 последующие, определяется для режима ввода.
-TransliterateWord                            *tr3-mapping-TransliterateWord*
-                По умолчанию: <_leader>w. Транслитерирует слово под 
-                курсором.
-TransliterateWORD                            *tr3-mapping-TransliterateWORD*
+TransliterateWord (i)                        *tr3-mapping-TransliterateWord*
+                По умолчанию: <_leader>w. Транслитерирует слово под курсором.
+TransliterateWORD (i)                        *tr3-mapping-TransliterateWORD*
                 По умолчанию: <_leader>W. Транслитерирует СЛОВО под курсором.
-StartToF                                              *tr3-mapping-StartToF*
+StartToF        (n)                                   *tr3-mapping-StartToF*
                 По умолчанию: <_leader>s. Включает режим транслитерации по 
                 мере ввода.
-StopToF                                                *tr3-mapping-StopToF*
+StopToF         (n)                                    *tr3-mapping-StopToF*
                 По умолчанию: <_leader>S. Отключает режим транслитерации по 
                 мере ввода.
-TranslitReplace                                *tr3-mapping-TranslitReplace*
+TranslitReplace (nx)                           *tr3-mapping-TranslitReplace*
                 По умолчанию: <_leader>r. Делает то же, что и команда |r|, но 
                 перед этим транслитерирует аргумент (то есть, если набрать 
                 «\tr<=>» достаточно быстро, то символ под курсором будет 
                 заменён на «⇔»). Note привязка использует значение 
                 'timeoutlen' если включена настройка 'timeout'.
                 Все следующие привязки работают аналогично TranslitReplace:
-TranslitNext                                       *tr3-mapping-TranslitNext*
-TranslitPrev                                       *tr3-mapping-TranslitPrev*
-TranslitToNext                                   *tr3-mapping-TranslitToNext*
-TranslitToPrev                                   *tr3-mapping-TranslitToPrev*
+TranslitNext    (nxo)                               *tr3-mapping-TranslitNext*
+TranslitPrev    (nxo)                               *tr3-mapping-TranslitPrev*
+TranslitToNext  (nxo)                             *tr3-mapping-TranslitToNext*
+TranslitToPrev  (nxo)                             *tr3-mapping-TranslitToPrev*
                 По умолчанию: <_leader>f, <_leader>F, <_leader>t, <_leader>T. 
                 Являются заменой командам |f|, |F|, |t| и |T| соответственно.
+TransliterateMotion (nx)                     *tr3-mapping-TransliterateMotion*
+                По умолчанию: <_leader>v. Транслитерирует выделение либо 
+                текстовый объект (|text-objects|).
 
 =============================================================================
 3. Настройки                                                    *tr3-options*
@@ -778,7 +779,7 @@ amsmath, bbm, stmaryrd, mathabx и euscript или mathrsfs. В таблицах
          п (pe)         p
 
 Греческий алфавит:
-        В таблицах для русского языка перед всеми символами следует 
+        Чтобы получить греческую букву, перед всеми сочетаниями следует 
         писать «|».
         α (alpha)       a               ξ (xi)          x
         β (beta)        b               ο (omicron)     o
@@ -946,6 +947,138 @@ amsmath, bbm, stmaryrd, mathabx и euscript или mathrsfs. В таблицах
         ∂       $d      частичный дифференциал
         ±,∓     +-,-+      плюс-минус/минус-плюс
         ⟨,⟩     |<, |>  Угловые скобки (обозначают усреднение)
+
+Символы рисования рамок (отсутвуют в :latex):
+        Если вы используете таблицу транслитерации, отличную от «box», то 
+        перед каждой последовательностью следует писать «$t».
+        ─ h     light horizontal
+        ━ H     heavy horizontal
+        │ v     light vertical
+        ┃ V     heavy vertical
+        ┄ 3h    light triple dash horizontal
+        ┅ 3H    heavy triple dash horizontal
+        ┆ 3v    light triple dash vertical
+        ┇ 3V    heavy triple dash vertical
+        ┈ 4h    light quadruple dash horizontal
+        ┉ 4H    heavy quadruple dash horizontal
+        ┊ 4v    light quadruple dash vertical
+        ┋ 4V    heavy quadruple dash vertical
+        ┌ dr    ligth down and right
+        ┍ dR    down light and right heavy
+        ┎ Dr    down heavy and rigth ligth
+        ┏ DR    heavy down and right
+        ┐ dl    ligth down and left
+        ┑ dL    down ligth and left heavy
+        ┒ Dl    down heavy and left light
+        ┓ DL    heavy down and left
+        └ ur    light up and right
+        ┕ uR    up light and right heavy
+        ┖ Ur    up heavy and right light
+        ┗ UR    heavy up and right
+        ┘ ul    light up and left
+        ┙ uL    up light and left heavy
+        ┚ Ul    up heavy and left light
+        ┛ UL    heavy up and left
+        ├ vr    light vertical and right
+        ┝ vR    vertical light and right heavy
+        ┞ Urd   up heavy and right down light
+        ┟ Dru   down heavy and right up light
+        ┠ Vr    vertical heavy and right light
+        ┡ dRU   down light and right up heavy
+        ┢ uRD   up light and right down heavy
+        ┣ VR    heavy vertical and right
+        ┤ vl    light vertical and left
+        ┥ vL    vertical light and left heavy
+        ┦ Uld   up heavy and left down light
+        ┧ Dlu   down heavy and left up light
+        ┨ Vl    vertical heavy and left light
+        ┩ dLU   down light and left up heavy
+        ┪ uLD   up light and left down heavy
+        ┫ VL    heavy vertical and left
+        ┬ dh    light down and horizontal
+        ┭ Lrd   left heavy and right down light
+        ┮ Rld   right heavy and left down light
+        ┯ dH    down light and horizontal heavy
+        ┰ Dh    down heavy and horizontal light
+        ┱ rLD   right light and left down heavy
+        ┲ lRD   left light and right down heavy
+        ┳ DH    heavy down and horizontal
+        ┴ uh    light up and horizontal
+        ┵ Lru   left heavy and right up light
+        ┶ Rlu   right heavy and left up light
+        ┷ uH    up light and horizontal heavy
+        ┸ Uh    up heavy and horizontal light
+        ┹ rLU   right light and left up heavy
+        ┺ lRU   left light and right up heavy
+        ┻ UH    heavy up and horizontal
+        ┼ vh    light vertical and horizontal
+        ┽ Lrv   left heavy and right vertical light
+        ┾ Rlv   right heavy and left vertical light
+        ┿ vH    vertical light and horizontal heavy
+        ╀ Udh   up heavy and down horizontal light
+        ╁ Duh   down heavy and up horizontal light
+        ╂ Vh    vertical heavy and horizontal light
+        ╃ LUrd  left up heavy and right down light
+        ╄ RUld  right up heavy and left down light
+        ╅ LDru  left down heavy and right up light
+        ╆ RDlu  right down heavy and left up light
+        ╇ dUH   down light and up horizontal heavy
+        ╈ uDH   up light and down horizontal heavy
+        ╉ rLV   right light and left vertical heavy
+        ╊ lRV   left light and right vertical heavy
+        ╋ VH    heavy vertical and horizontal
+        ╌ 2h    light double dash horizontal
+        ╍ 2H    heavy double dash horizontal
+        ╎ 2v    light double dash vertical
+        ╏ 2V    heavy double dash vertical
+        ═ bh    double horizontal
+        ║ bv    double vertical
+        ╒ dbr   down single and right double
+        ╓ bdr   down double and right single
+        ╔ Bdr   double down and right
+        ╕ dbl   down single and left double
+        ╖ bdl   down double and left single
+        ╗ Bdl   double down and left
+        ╘ ubr   up single and right double
+        ╙ bur   up double and right single
+        ╚ Bur   double up and right
+        ╛ ubl   up single and left double
+        ╜ bul   up double and left single
+        ╝ Bul   double up and left
+        ╞ vbr   vertical single and right double
+        ╟ bvr   vertical double and right single
+        ╠ Bvr   double vertical and right
+        ╡ vbl   vertical single and left double
+        ╢ bvl   vertical double and left single
+        ╣ Bvl   double vertical and left
+        ╤ dbh   down single and horizontal double
+        ╥ bdh   down double and horizontal single
+        ╦ Bdh   double down and horizontal
+        ╧ ubh   up single and horizontal double
+        ╨ buh   up double and horizontal single
+        ╩ Buh   double up and horizontal
+        ╪ vbh   vertical single and horizontal double
+        ╫ bvh   vertical double and horizontal single
+        ╬ Bvh   double vertical and horizontal
+        ╭ adr   light arc down and right
+        ╮ adl   light arc down and left
+        ╯ aul   light arc up and left
+        ╰ aur   light arc up and right
+        ╱ /     light diagonal upper right to lower left
+        ╲ \     light diagonal upper left to lower right
+        ╳ x     light diagonal cross
+        ╴ l     light left
+        ╵ u     light up
+        ╶ r     light right
+        ╷ d     light down
+        ╸ L     heavy left
+        ╹ U     heavy up
+        ╺ R     heavy right
+        ╻ D     heavy down
+        ╼ lR    light left and heavy right
+        ╽ uD    light up and heavy down
+        ╾ Lr    heavy left and light right
+        ╿ Ud    heavy up and light down
 
 Другие символы:
         №       #       номер
