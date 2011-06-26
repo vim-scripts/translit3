@@ -22,8 +22,5 @@ Documentation: http://vimpluginloader.sourceforge.net/doc/translit3.txt.html
 Russian documentation: http://vimpluginloader.sourceforge.net/doc/translit3.rux.html
 Project page: http://sourceforge.net/projects/translit3
 Dependencies (you do not need to install them by yourself, see installation details):
-vimscript #3184, http://sourceforge.net/projects/vimpluginloader
 vimscript #3185, http://sourceforge.net/projects/jsonvim
-vimscript #3186, http://sourceforge.net/projects/vimstuff
-vimscript #3187, http://sourceforge.net/projects/vimargumentchec
-vimscript #3188, http://sourceforge.net/projects/vimcompcrtr
+vimscript #3631, https://bitbucket.org/ZyX_I/frawor
