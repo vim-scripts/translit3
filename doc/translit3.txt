@@ -25,18 +25,21 @@ another. The typical use case is transliteration of latin symbols into russian
 symbols for systems without russian keyboard.
 
 Features:
-    ∙ transliteration of text, provided as function argument;
-    ∙ transliteration of a selection or a line range;
-    ∙ input transliteration;
-    ∙ setting up the input transliteration in current buffer or in all opened
-      buffers;
-    ∙ plugin system for transliteration function;
-    ∙ plugin system for input transliteration;
-    ∙ loading transliteration table from a file, a variable, a dictionary or
-      a function;
-    ∙ displaying the transliteration table on the screen.
+  - transliteration of text, provided as function argument;
+  - transliteration of a selection or a line range;
+  - input transliteration;
+  - setting up the input transliteration in current buffer or in all opened
+    buffers;
+  - plugin system for transliteration function;
+  - plugin system for input transliteration;
+  - loading transliteration table from a file, a variable, a dictionary or
+    a function;
+  - displaying the transliteration table on the screen.
 
-This plugin requires frawor and json plugins.
+Plugin requires some additional plugins:
+  - frawor (https://bitbucket.org/ZyX_I/frawor)
+  - jsonvim (http://sourceforge.net/projects/jsonvim)
+(with their dependencies).
 
 =============================================================================
 2. Functionality provided                                  *tr3-functionality*
@@ -79,6 +82,12 @@ command line you can use only string values.
                 transliteration table and save the result (see 
                 |tr3-action-save|). If bang is not present this command fails 
                 if {srcstr} already exists.
+:Tr3Command include {srcstr} {incstr} [to {transsymb}]    *tr3-action-include*
+                Include {incstr} in {srcstr} and save the result (see 
+                |tr3-action-save|).
+:Tr3Command exclude {srcstr} {incstr} [from {transsymb}]  *tr3-action-exclude*
+                Remove inclusion of {incstr} from {srcstr} and save the result 
+                (see |tr3-action-save|).
 :Tr3Command[!] delete {srcstr} [from {transsymb}]          *tr3-action-delete*
                 Delete string {srcstr} from transliteration table and save the 
                 result (see |tr3-action-save|). If bang is given then delete 
@@ -132,6 +141,14 @@ Tr3add({srcstr}, {trstr}[, {replace}[, {transsymb}]])               *Tr3add()*
                 Add string {srcstr} that must be transliterated as {trstr} to 
                 transliteration table and save the result (see 
                 |tr3-action-save|). If {replace} is 1 rewrite existing string.
+                                                        *tr3-function-include*
+Tr3include({srcstr}, {incstr}[, {transsymb}])                   *Tr3include()*
+                Include {incstr} in {srcstr} and save the result (see 
+                |tr3-action-save|).
+                                                        *tr3-function-exclude*
+Tr3exclude({srcstr}, {incstr}[, {transsymb}])                   *Tr3exclude()*
+                Remove inclusion of {incstr} from {srcstr} and save the result 
+                (see |tr3-action-save|).
                                                             *tr3-function-del*
 Tr3del({srcstr}[, {recurse}[, {transsymb}]])                        *Tr3del()*
                 Delete string {srcstr} from transliteration table and save the 
@@ -582,8 +599,11 @@ Transliteration table is a dictionary with the following keys:
 2. Key “none”. Must not be present in the root transliteration table. 
    Corresponding value contains the transliteration result for the current 
    sequence.
+3. Key “include”. Lists transliteration tables (|tr3-transsymb-arg|) that will 
+   be merged into the current table, adding sequences starting with the 
+   current one.
                                                        *tr3-transsymb-options*
-3. Key “options”. Corresponding value must contain a dictionary with pair 
+4. Key “options”. Corresponding value must contain a dictionary with pair 
    “capital”: (“none” or “first”). Value “none” means that current sequence 
    does not have an uppercase analogue. Value “first” means that only first 
    symbol will be turned to upper case.

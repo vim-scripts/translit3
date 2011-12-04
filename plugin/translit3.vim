@@ -32,6 +32,8 @@ if !exists('s:_pluginloaded')
                 \                '{for _ '.
                 \                 'in '.s:ctr.'}) '.
                 \ 'add           (_ _ {to   '.s:ctr.'}) '.
+                \ 'include       (_ _ {to   '.s:ctr.'}) '.
+                \ 'exclude       (_ _ {from '.s:ctr.'}) '.
                 \ 'delete        (_   {from '.s:ctr.'}) '.
                 \ 'save          (['.s:ctr.']) '.
                 \ 'print         {transsymb '.s:ctr.' '.
@@ -62,6 +64,12 @@ if !exists('s:_pluginloaded')
                 \                              'type "" '.
                 \                              '[:=(0) bool '.
                 \                              '['.s:ctr.']]', 'filter']},
+                \'Tr3include':       {'@FWC': ['match /./ '.
+                \                              'either (type ("",{}),|isfunc) '.
+                \                              '['.s:ctr.']',  'filter']},
+                \'Tr3exclude':       {'@FWC': ['match /./ '.
+                \                              'either (type ("",{}),|isfunc) '.
+                \                              '['.s:ctr.']',  'filter']},
                 \'Tr3del':           {'@FWC': ['match /./ '.
                 \                              '[:=(0) bool '.
                 \                              '['.s:ctr.']]', 'filter']},
@@ -177,6 +185,10 @@ if v:lang=~?'ru' "{{{3
             \     'fnc': 'Невозможно вызвать функцию по предоставленной ссылке',
             \    'bnnf': 'Не удалось найти буфер с именем «%s»',
             \  'itrans': 'Неверная таблица транслитерации',
+            \ 'incfail': 'Не удалось подключить одну из таблиц транслитерации',
+            \  'notinc': '«%s» не включено',
+            \     'nex': 'Нечего удалять',
+            \    'ainc': '«%s» уже включено',
             \'cache': {
             \   'th': {
             \       'trans': ['Источник', 'Кэш вывода на экран',
@@ -200,6 +212,7 @@ if v:lang=~?'ru' "{{{3
         \}
     call extend(s:_messages, map({
             \     'str': 'значение должно быть строкой',
+            \   'klist': 'значение должно быть списком',
             \    'dict': 'значение должно быть словарём',
             \  'uknkey': 'неизвестрый ключ',
             \'invvalue': 'неверное значение: %s',
@@ -228,6 +241,10 @@ else "{{{3
             \     'fnc': 'Provided function reference is not callable',
             \    'bnnf': 'Buffer “%s” not found',
             \  'itrans': 'Invalid transliteration table',
+            \ 'incfail': 'Failed to include one of transliteration tables',
+            \  'notinc': '“%s” was not included',
+            \     'nex': 'Nothing to exclude',
+            \    'ainc': '“%s” already included',
             \'cache': {
             \   'th': {
             \       'trans': ['Table source', 'Print cache', 'ToF cache'],
@@ -250,6 +267,7 @@ else "{{{3
         \}
     call extend(s:_messages, map({
             \     'str': 'value must be of a type “string”',
+            \   'klist': 'value must be of a type “list”',
             \    'dict': 'value must be of a type “dictionary”',
             \  'uknkey': 'unknown key',
             \'invvalue': 'invalid value: %s',
@@ -257,6 +275,10 @@ else "{{{3
             \}, '"Error while processing “%s”: ".v:val'))
 endif
 "{{{1 Вторая загрузка — основная часть
+"{{{2 _unload
+function s:._unload()
+    call map(values(s:tofbufdicts), 's:F.tof.stop(v:val)')
+endfunction
 "{{{2 stuf
 " Некоторые полезные вещи, не относящиеся непосредственно к плагину
 "{{{3 stuf.strlen: получение длины строки
@@ -447,6 +469,12 @@ function s:F.comm.checktrkey(key, value, where)
                 call s:_f.warn('invvalue', a:where.'/capital', a:value.capital)
                 return 1
             endif
+        "{{{5 Ключ «include»
+        elseif a:key is# 'include'
+            if type(a:value)!=type([])
+                call s:_f.warn('klist', a:where)
+                return 1
+            endif
         "{{{5 Неизвестный ключ
         else
             call s:_f.warn('uknkey', a:where)
@@ -519,6 +547,20 @@ function s:F.comm.formattr(transsymb)
             "{{{6 Ключ «none»
             elseif key is# 'none'
                 let result.none=value
+            "{{{6 Ключ «include»
+            elseif key is# 'include'
+                let newtrs=map(copy(value),'copy(s:F.comm.gettranssymb(v:val))')
+                for transsymb in newtrs
+                    if transsymb is 0
+                        call s:_f.warn('incfail')
+                        return 0
+                    endif
+                    unlet transsymb.origin
+                    unlet transsymb.source
+                    call extend(result, deepcopy(transsymb), 'keep')
+                    unlet transsymb
+                endfor
+                unlet newtrs
             endif
             "}}}6
             unlet value
@@ -562,7 +604,7 @@ function s:F.comm.gettranssymb(...)
                 call s:_f.warn('trans')
                 return 0
             endif
-        elseif d.Trans=~#'^\.\|\.json$\|[\\/]' && filereadable(d.Trans)
+        elseif d.Trans=~#'\v^\.|\.json$|[\\/]' && filereadable(d.Trans)
             let fname=fnamemodify(d.Trans, ':p')
             let rettrans=s:_r.json.load(fname)
             let src=['file', fname]
@@ -621,6 +663,9 @@ function s:F.comm.gettranssymb(...)
             return 0
         endif
         let curtrans=s:F.comm.formattr(rettrans)
+        if curtrans is 0
+            return 0
+        endif
         "}}}5
     else
         let curtrans=deepcopy(s:cache.trans[1][fidx])
@@ -1146,10 +1191,11 @@ function s:F.tof.getuntrans(bufdict, char)
             " запущена
             let newmap=copy(exmap)
             let newmap.lhs='<Plug>Translit3TempMap'
+            let newmap.buffer=1
             call s:_r.map.map(newmap)
             " По непонятной причине feedkeys непосредственно в скрипте не 
             " работает, поэтому используется следующий хак
-            return "\<C-\>\<C-o>:call feedkeys(\"\\<Plug>Translit3TempMap\")\n"
+            return "\<C-r>=[feedkeys(\"\\<Plug>Translit3TempMap\"), ''][1]\n"
         else
             " Если WriteFunc определена, то она должна также и заботиться 
             " о старых привязках
@@ -1599,7 +1645,7 @@ endfunction
 function s:F.mod.add(srcstr, trstr, replace, transsymb)
     let curch=s:F.stuf.nextchar(a:srcstr)
     let tail=a:srcstr[(len(curch)):]
-    if curch==''
+    if empty(curch)
         if a:replace || !has_key(a:transsymb, 'none')
             let a:transsymb.none=s:F.mod.formattotr(tail, a:trstr)
             return 1
@@ -1609,10 +1655,9 @@ function s:F.mod.add(srcstr, trstr, replace, transsymb)
         endif
     elseif has_key(a:transsymb, curch)
         if type(a:transsymb[curch])==type('')
-            if len(tail)
-                let a:transsymb[curch]=extend(s:F.mod.formattotr(tail,
-                            \                                       a:trstr),
-                            \                   {'none': a:transsymb[curch]})
+            if !empty(tail)
+                let a:transsymb[curch]=extend(s:F.mod.formattotr(tail, a:trstr),
+                            \                 {'none': a:transsymb[curch]})
                 return 1
             elseif a:replace
                 let a:transsymb[curch]=s:F.mod.formattotr(tail, a:trstr)
@@ -1629,10 +1674,68 @@ function s:F.mod.add(srcstr, trstr, replace, transsymb)
         return 1
     endif
 endfunction
+"{{{3 mod.inc: добавить ключ «include»
+function s:F.mod.inc(srcstr, incstr, exclude, transsymb)
+    let curch=s:F.stuf.nextchar(a:srcstr)
+    let tail=a:srcstr[(len(curch)):]
+    if empty(curch)
+        if has_key(a:transsymb, 'include')
+            if a:exclude
+                let oldinclen=len(a:transsymb.include)
+                call filter(a:transsymb.include, 'v:val isnot# a:incstr')
+                let inclen=len(a:transsymb.include)
+                if inclen==oldinclen
+                    call s:_f.warn('notinc', a:incstr)
+                    return 0
+                elseif !inclen
+                    unlet a:transsymb.include
+                endif
+                return 1
+            elseif index(a:transsymb.include, a:incstr)!=-1
+                call s:_f.warn('ainc', a:incstr)
+                return 0
+            endif
+        elseif a:exclude
+            call s:_f.warn('nex')
+            return 0
+        else
+            let a:transsymb.include=[]
+        endif
+        let a:transsymb.include+=[a:incstr]
+        return 1
+    elseif has_key(a:transsymb, curch)
+        if type(a:transsymb[curch])==type('')
+            if a:exclude
+                call s:_f.warn('nex')
+                return 0
+            elseif empty(tail)
+                let a:transsymb[curch]={'none': a:transsymb[curch],
+                            \        'include': [a:incstr]}
+            else
+                let a:transsymb[curch]=extend(s:F.mod.formattotr(tail,
+                            \                          {'include': [a:incstr]}),
+                            \                 {'none': a:transsymb[curch]})
+            endif
+            return 1
+        else
+            let r=s:F.mod.inc(tail, a:incstr, a:exclude, a:transsymb[curch])
+            if r && empty(a:transsymb[curch])
+                unlet a:transsymb[curch]
+            endif
+            return r
+        endif
+    elseif a:exclude
+        call s:_f.warn('nex')
+        return 0
+    else
+        let a:transsymb[curch]=s:F.mod.formattotr(tail, {'include': [a:incstr]})
+        return 1
+    endif
+endfunction
 "{{{3 mod.del: удалить транслитерируемую последовательность
-function s:F.mod.del(trstr, recurse, transsymb)
+function s:F.mod.del(srcstr, recurse, transsymb)
     let transsymb=a:transsymb
-    let trlist=split(a:trstr, '\zs')
+    let trlist=split(a:srcstr, '\zs')
     let i=0
     while i<len(trlist)
         let curch=trlist[i]
@@ -1892,8 +1995,10 @@ function s:F.prnt.main(columns, transsymb)
 endfunction
 "{{{2 Внешние функции
 let s:efbodies={
-            \'add': 'call(s:F.mod.main, ["add", a:000[-1]]+a:000[0:2], {})',
-            \'del': 'call(s:F.mod.main, ["del", a:000[-1]]+a:000[0:1], {})',
+            \'add':     'call(s:F.mod.main, ["add", a:000[-1]]+a:000[0:2], {})',
+            \'include': 'call(s:F.mod.main, ["inc", a:000[-1]]+a:000[0:1]+[0], {})',
+            \'exclude': 'call(s:F.mod.main, ["inc", a:000[-1]]+a:000[0:1]+[1], {})',
+            \'del':     'call(s:F.mod.main, ["del", a:000[-1]]+a:000[0:1], {})',
             \'setoption': 'call(s:F.mod.main, ["setoption", '.
             \                                 'a:000[-1], a:000[2], a:000[0], '.
             \                                 'a:000[1], a:000[3]], {})',
@@ -1949,7 +2054,7 @@ function s:F.mng.tof(bang, action, ...)
                     unlet s:toftranssymb
                 endif
                 return !s:F.stuf.checklod(values(s:tofbufdicts),
-                            \'s:F.tof.stop(copy(v:val))')
+                            \'s:F.tof.stop(v:val)')
             elseif has_key(s:tofbufdicts, bufnr('%'))
                 return s:F.tof.stop(s:tofbufdicts[bufnr('%')])
             endif
@@ -2040,8 +2145,10 @@ endfunction
 "{{{3 cmdfun.function
 "{{{4 s:cmdactions, s:rewritemode
 let s:cmdactions={
-            \'add':    's:F.mod.main("add", a:3.to,   a:1, a:2, a:bang)',
-            \'delete': 's:F.mod.main("del", a:2.from, a:1,      a:bang)',
+            \'add':     's:F.mod.main("add", a:3.to,     a:1, a:2, a:bang)',
+            \'include': 's:F.mod.main("inc", a:3.to,     a:1, a:2, 0     )',
+            \'exclude': 's:F.mod.main("inc", a:3.to,     a:1, a:2, 1     )',
+            \'delete':  's:F.mod.main("del", a:2.from,   a:1,      a:bang)',
             \'setoption': 's:F.mod.main("setoption", a:3.in, a:3.for, '.
             \                                        'a:1, a:2, a:bang)',
             \'deloption': 's:F.mod.main("setoption", a:2.in, a:2.for, '.
