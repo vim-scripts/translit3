@@ -1,25 +1,16 @@
 "{{{1 Начало
 scriptencoding utf-8
-if !exists('s:_pluginloaded')
-    "{{{2 Объявление переменных
-    execute frawor#Setup('0.0', {'@/options': '0.0',
-                \              '@/resources': '0.0',
-                \               '@/commands': '0.0',
-                \                  '@/table': '0.0',
-                \              '@/functions': '0.0',
-                \                    '@/fwc': '0.0',}, 0)
-    call map(['json', 'cache'], 'extend(s:F, {v:val : {}})')
-    "{{{2 Define JSONCache command
-    call FraworLoad('@/commands')
-    call FraworLoad('@/functions')
-    let s:jsoncmd={'@FWC': ['in [show purge] ~start 1', 'filter']}
-    call s:_f.command.add('JSONCache', s:jsoncmd,
-                \         {'nargs': '1', 'complete': [s:jsoncmd['@FWC'][0]]})
-    "}}}2
-    finish
-elseif s:_pluginloaded
-    finish
-endif
+execute frawor#Setup('0.0', {'@/options': '0.0',
+            \              '@/resources': '0.0',
+            \               '@/commands': '0.0',
+            \                  '@/table': '0.0',
+            \              '@/functions': '0.0',
+            \                    '@/fwc': '0.0',})
+call map(['json', 'cache'], 'extend(s:F, {v:val : {}})')
+"{{{1 Define JSONCache command
+let s:jsoncmd={'@FWC': ['in [show purge] ~start 1', 'filter']}
+call s:_f.command.add('JSONCache', s:jsoncmd,
+            \         {'nargs': '1', 'complete': [s:jsoncmd['@FWC'][0]]})
 "{{{1 Вторая загрузка
 "{{{2 s:_options
 let s:_options={
@@ -77,7 +68,7 @@ else
                 \  'joe': 'Object must end with “}”',
                 \  'jle': 'List must end with “]”',
                 \ 'uact': 'Uknown action',
-                \  'utf': 'Invalid UTF symbol: %s'
+                \  'utf': 'Invalid UTF symbol: %s',
                 \
                 \'th': ['File', 'Modification time'],
                 \'emptycache': 'Cache is empty',
@@ -407,6 +398,16 @@ except ImportError:
         import json
     loadfunc=json.loads
     dumpfunc=json.dumps
+if hasattr(vim, 'bindeval'):
+    def export_vim(val):
+        vim.bindeval('r')['result']=val
+    def import_vim(var):
+        return vim.bindeval(var)
+else:
+    def export_vim(val):
+        vim.eval("extend(r, {'result': "+dumpfunc(val)+"})")
+    def import_vim(var):
+        return vim.eval(var)
 EOF
 endfunction
 "{{{3 json.loads: JSON string->vim
@@ -423,7 +424,6 @@ function s:F.json.loads(str)
     "{{{4 Собственно, загрузка
     try
         call s:F.json.setpython()
-        python jstr=loadfunc(vim.eval('a:str'))
         " Simplejson не поддерживает UTF-8 символы выше 0x10FFFF, а demjson не 
         " сваливается с ошибкой, если встречается неверный UTF-8.
         " //Кроме того, demjson выдаёт UTF-8 строку, которую, если она содержит 
@@ -433,9 +433,9 @@ function s:F.json.loads(str)
         " jstr.encode("ascii", "backslashreplace")
         " //И ещё, при попытке использовать в файле суррогатные пары получается 
         " //не тот результат, на который мы рассчитывали (simplejson).
-        python vim.eval("extend(l:, {'tmp': '"+
-                    \str(bytearray(jstr, 'utf-8')).replace("'", "''")+"'})")
-        return tmp
+        let r={}
+        python export_vim(loadfunc(import_vim('a:str')))
+        return r.result
     catch
         return s:F.json.vsloads(a:str)
     endtry
@@ -451,13 +451,11 @@ function s:F.json.dumps(what)
     "{{{4 Собственно, выгрузка
     try
         call s:F.json.setpython()
-        python var=vim.eval('a:what')
         " Simplejson не поддерживает UTF-8 символы выше 0x10FFFF, а demjson не 
         " сваливается с ошибкой, если встречается неверный UTF-8.
-        python vim.eval("extend(l:, {'str': '"+
-                    \str(bytearray(dumpfunc(var), 'utf-8')).replace("'", "''")+
-                    \"'})")
-        return str
+        let r={}
+        python export_vim(dumpfunc(import_vim('a:what')))
+        return r.result
     catch
         return s:F.json.vsdumps(a:what)
     endtry
@@ -522,5 +520,5 @@ call s:_f.postresource('json', {'dump': s:F.json.dump,
             \                   'load': s:F.cache.load,
             \                  'loads': s:F.json.loads,})
 "{{{1
-call frawor#Lockvar(s:, 'cache,_pluginloaded')
+call frawor#Lockvar(s:, 'cache')
 " vim: ft=vim:ts=8:fdm=marker:fenc=utf-8

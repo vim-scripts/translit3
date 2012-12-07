@@ -1,7 +1,7 @@
 "▶1 Header
 scriptencoding utf-8
 execute frawor#Setup('0.0', {'@/fwc/parser'       : '0.0',
-            \                '@/fwc/constructor'  : '0.0',
+            \                '@/fwc/constructor'  : '4.0',
             \                '@/fwc/intfuncs'     : '0.0',
             \                '@/fwc/topconstructs': '0.0',
             \                '@/resources'        : '0.0'}, 1)
@@ -197,7 +197,7 @@ endfunction
 function s:compiler.fail()
     let msgstatus=self.msgs.statuses[-1]
     if msgstatus is# 'return'
-        return self[self.failcal[0]](self.failcal[1]).up()
+        return self[self.failcal[0]](self.failcal[1])._up()
     else
         return self.throw(s:cfstr)
     endif
@@ -405,6 +405,10 @@ function s:compiler.getvar(var, ...)
         let r=[self.getexpr(a:var)]
     elseif a:var[0] is# 'string'
         let r=[self.string(a:var[1])]
+    elseif a:var[0] is# 'number'
+        let r=[''.a:var[1]]
+    elseif a:var[0] is# 'float'
+        let r=[string(a:var[1])]
     elseif a:var[0] is# 'argument'
         let r=[self.argbase, [s:F.incrementsub(self.subs[0], a:var[1])]+
                     \        a:var[2:]]
@@ -428,11 +432,11 @@ function s:compiler.getvar(var, ...)
 endfunction
 "▶1 getlvarid       :: varname + self → varname
 function s:compiler.getlvarid(v)
-    return printf('@$@%s%X', a:v, len(self.stack))
+    return printf('@$@%s%X', a:v, len(self._stack))
 endfunction
 "▶1 getulvarid      :: varname + self → varname
 function s:compiler.getulvarid(v)
-    let lvarid=printf('@$@%s%X', a:v, len(self.stack))
+    let lvarid=printf('@$@%s%X', a:v, len(self._stack))
     let i=0
     while has_key(self.lvars, printf('%s_%X', lvarid, i))
         let i+=1
@@ -488,7 +492,7 @@ function s:compiler.setmatches(ldstr, exptype, filter)
     else
         let vstr=self.vstrs[-1]
         call add(self.vstinf[vstr], ['let', a:ldstr])
-        call filter(self.l, '!(v:val[0] is# "let" && v:val[1] is# vstr)')
+        call filter(self._l, '!(v:val[0] is# "let" && v:val[1] is# vstr)')
         if a:filter
             return self.let(vstr, self.getmatcher(self.matcher, a:ldstr,
                         \                         self.comparg, 1))
@@ -597,7 +601,7 @@ function s:compiler.addrestmsgs(...)
     endif
     return   self.if('len(@$@messages)>'.msglenstr)
                     \.call('remove(@$@messages, '.msglenstr.', -1)')
-                \.up().if('len(@$@pmessages)>'.pmsglenstr)
+                \._up().if('len(@$@pmessages)>'.pmsglenstr)
                     \.call('remove(@$@pmessages, '.pmsglenstr.', -1)')
                 \.endif()
 endfunction
@@ -657,14 +661,14 @@ endfunction
 " }
 " For other syntax trees it will return 0.
 function s:compiler.optgetconds()
-    if len(self.l)==2
-                \&& len(self.l[0])>2
-                \&& self.l[0][0] is# 'if'
-                \&& ((self.l[0][-1] is# 'endif'
-                \  && self.l[0][-3] isnot# 'else')
-                \ || (self.l[0][-2] isnot# 'else'))
+    if len(self._l)==2
+                \&& len(self._l[0])>2
+                \&& self._l[0][0] is# 'if'
+                \&& ((self._l[0][-1] is# 'endif'
+                \  && self._l[0][-3] isnot# 'else')
+                \ || (self._l[0][-2] isnot# 'else'))
         let conditions=[]
-        let iftree=copy(self.l[0])
+        let iftree=copy(self._l[0])
         while !empty(iftree)
             let type=remove(iftree, 0)
             if type is# 'if' || type is# 'elseif'
@@ -686,31 +690,31 @@ endfunction
 "▶1 optimizecompf   :: &self(varname)
 " XXX low-level hacks here
 function s:compiler.optimizecompf(vstr)
-    call self.down(self.l[2][-1][1])
+    call self._down(self._l[2][-1][1])
     let conditions=self.optgetconds()
-    call self.up()
+    call self._up()
     if type(conditions)==type([])
-        call self.down(self.l[2])
-        let argidxstr=self.l[-1][1][-1][1]
-        let removestr=self.l[-1][-1][0][1]
+        call self._down(self._l[2])
+        let argidxstr=self._l[-1][1][-1][1]
+        let removestr=self._l[-1][-1][0][1]
         let condition=join(conditions, ' || ')
         let chargstr=a:vstr.'['.argidxstr.']'
         if condition=~#'\v^%([^@]|\V'.chargstr.'\v)+$'
-            call self.up()
-            call self.up()
-            call remove(self.l, -2, -1)
+            call self._up()
+            call self._up()
+            call remove(self._l, -2, -1)
             let condition=substitute(condition, '\V'.chargstr, 'v:val', 'g')
             call self.call('filter('.a:vstr.', '.string('!('.condition.')').')')
         else
-            call remove(self.l, -1)
+            call remove(self._l, -1)
             call self.if(condition)
             call         self.call(removestr)
-            call     self.up()
-            call self.addif()
+            call     self._up()
+            call self.addelse()
             call         self.increment(argidxstr)
-            call     self.up()
-            call self.up()
-            call self.up()
+            call     self._up()
+            call self._up()
+            call self._up()
         endif
     endif
     return self
@@ -920,12 +924,12 @@ function s:compiler.compilearg(argcon, idx, type)
             call self.without()
             call self.popms()
             call         self.increment(argidxstr)
-            call     self.up()
+            call     self._up()
             call self.catch(s:cfreg)
             call         self.call('remove('.vstr.', '.argidxstr.')')
-            call self.up()
-            call self.up()
-            call self.up()
+            call self._up()
+            call self._up()
+            call self._up()
             call self.optimizecompf(vstr)
         endif
         call self.popvstr()
@@ -970,7 +974,7 @@ function s:compiler.compadescr(adescr, idx, type, ...)
                 call self.compilearg(arg, idx, a:type)
                 call self.incsub()
                 if a:type is# 'complete' && !self.o.only
-                    call self.up()
+                    call self._up()
                 endif
                 if self.onlyfirst
                     return self
@@ -1094,16 +1098,16 @@ function s:F.compstr(vars, string, type, doreturn)
         call t.let('@$@pmessages', '[]')
         call t.try()
         call t.compadescr(tree, '', t.type)
-        call t.up()
+        call t._up()
         call t.finally()
         call     t.for('@$@targs', '@$@messages')
         call         t.call('call(@%@.F.warn, @$@targs, {})')
-        call     t.up()
+        call     t._up()
         call     t.for('@$@targs', '@$@pmessages')
         call         t.call('call(@%@.p._f.warn, @$@targs, {})')
-        call     t.up()
-        call t.up()
-        call t.up()
+        call     t._up()
+        call t._up()
+        call t._up()
     else
         call t.let('@-@', '[]')
         call t.compadescr(tree, '', t.type)
@@ -1117,7 +1121,7 @@ function s:F.compstr(vars, string, type, doreturn)
             call t.return('@-@')
         endif
     endif
-    return [t.o, t.tolist()]
+    return [t.o, t._tolist()]
 endfunction
 "▶1 Register fwc_compile resource
 call s:_f.postresource('fwc_compile', s:F.compstr)

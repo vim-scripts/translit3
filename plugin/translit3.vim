@@ -8,10 +8,10 @@ if !exists('s:_pluginloaded')
                 \              '@/functions': '0.0',
                 \                    '@/fwc': '0.0',
                 \                     '@/os': '0.0',
-                \                    '@json': '0.0',
                 \                  '@/table': '0.1',
                 \   '@/decorators/altervars': '0.0',
-                \                '@/history': '0.0',}, 0)
+                \                '@/history': '0.0',
+                \                   '@%json': '0.0',}, 0)
     call FraworLoad('@/commands')
     call FraworLoad('@/mappings')
     call FraworLoad('@/functions')

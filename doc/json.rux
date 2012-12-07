@@ -46,7 +46,9 @@ CONTENTS                                                       *json-contents*
 2.2. Функции                                                  *json-functions*
 
 Доступ к функциям можно получить только через словарь, являющийся ресурсом 
-«json» (см. |frawor-f-addresource|).
+«json» (см. |frawor-f-addresource|). Всё, что надо для этого сделать — это 
+добавить «autoload/json» в список зависимостей и затем использовать 
+s:_r.json.*.
 
 json.load({file}[, {ignorecache}])                          *json-r-json.load*
         Загружает данные в формате JSON из указанного файла. Если присутствует 

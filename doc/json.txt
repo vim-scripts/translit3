@@ -41,7 +41,8 @@ via dictionary that is a `json' resource (see |frawor-f-addresource|).
 2.2. Functions                                                *json-functions*
 
 All following functions are accessed via `json' resource (see 
-|frawor-f-addresource|).
+|frawor-f-addresource|). Basically you just need to add “autoload/json” plugin 
+to dependencies dictionary and then use s:_r.json.*.
 
 json.load({file}[, {ignorecache}])                          *json-r-json.load*
         Load JSON data from file. If {ignorecache} is present and is equal 
