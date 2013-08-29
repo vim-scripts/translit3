@@ -1111,6 +1111,13 @@ Combining diacritics (not present in :latex):
         aͮ v     LATIN SMALL LETTER V
         aͯ x     LATIN SMALL LETTER X
 
+Fullwidth symbols:
+        All fullwidth symbols are obtained by prefixing regular symbols with 
+        `$F`. The following symbols are available: `!"#$%&'()*+,-./`, 
+        `:;<=>?@`, `[\]^_`, grave accent, `{|}~` and all latin letters.
+
+        For example, `$Fa` produces `ａ`.
+
 Other symbols:
         №       #       Numero sign
         ℰ       $E      EMF (electromotive force)

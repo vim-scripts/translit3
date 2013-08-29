@@ -13,8 +13,7 @@ call map(['trs', 'tof', 'stuf', 'comm', 'mod', 'prnt', 'map', 'mng', 'comp',
             \], 'extend(s:F, {v:val : {}})')
 let s:F.trs.plug={}
 let s:F.tof.plug={}
-"{{{1 Вторая загрузка
-"{{{2 Настройки
+"{{{1 Настройки
 let s:_oprefix='tr3'
 let s:_options={
             \'BrkSeq': {'default': '@', 'checker': 'type ""'},
@@ -47,8 +46,8 @@ let s:_options={
             \'BreakFunc': {'default': 0,
             \              'checker': 'either (is=(0), isfunc 1)'},
         \}
-"{{{2 Выводимые сообщения
-if v:lang=~?'ru' "{{{3
+"{{{1 Выводимые сообщения
+if v:lang=~?'ru' "{{{2
     let s:_messages={
             \    'list': 'Значение должно быть списком',
             \    'bool': 'Значение должно быть числом, равным либо нулю, '.
@@ -108,7 +107,7 @@ if v:lang=~?'ru' "{{{3
             \'invvalue': 'неверное значение: %s',
             \     'sdt': 'значение должно быть либо строкой, либо словарём',
             \}, '"Ошибка проверки «%s»: ".v:val'))
-else "{{{3
+else "{{{2
     let s:_messages={
             \    'list': 'Value must be of a type “list”',
             \    'bool': 'Value must be number, equal to either 0 or 1',
@@ -164,18 +163,17 @@ else "{{{3
             \     'sdt': 'Value must be either string or dictionary',
             \}, '"Error while processing “%s”: ".v:val'))
 endif
-"{{{1 Вторая загрузка — основная часть
-"{{{2 _unload
+"{{{1 _unload
 function s:._unload()
     call map(values(s:tofbufdicts), 's:F.tof.stop(v:val)')
 endfunction
-"{{{2 stuf
+"{{{1 stuf
 " Некоторые полезные вещи, не относящиеся непосредственно к плагину
-"{{{3 stuf.strlen: получение длины строки
+"{{{2 stuf.strlen: получение длины строки
 function s:F.stuf.strlen(str)
     return len(split(a:str, '\v.@='))
 endfunction
-"{{{3 stuf.iscombining: проверить, является ли символ диакритикой
+"{{{2 stuf.iscombining: проверить, является ли символ диакритикой
 " Если да, то вернуть его длину в байтах
 " Unicode: combining diacritical marks: определение
 " Wikipedia: http://en.wikipedia.org/wiki/Combining_character:
@@ -193,26 +191,26 @@ function s:F.stuf.iscombining(char)
     endif
     return 0
 endfunction
-"{{{3 stuf.nextchar: получить следующий символ (reg('.'))
+"{{{2 stuf.nextchar: получить следующий символ (reg('.'))
 " Получить следующий символ. Если дан второй аргумент, то получить следующий за 
 " позицией, данной во втором аргументе, символ.
 function s:F.stuf.nextchar(str, ...)
     return matchstr(a:str, '\v.', ((len(a:000))?(a:000[0]):(0)))
 endfunction
-"{{{3 stuf.nextchar_nr получить следующий символ (nr2char(char2nr))
+"{{{2 stuf.nextchar_nr получить следующий символ (nr2char(char2nr))
 " То же, что и предыдущая функция, но получение следующего символа выполняется 
 " с помощью nr2char(char2nr)
 function s:F.stuf.nextchar_nr(str, ...)
     return nr2char(char2nr(a:str[((len(a:000))?(a:000[0]):(0)):]))
 endfunction
-"{{{3 stuf.checklod: проверить весь словарь или список
+"{{{2 stuf.checklod: проверить весь словарь или список
 function s:F.stuf.checklod(subj, chk)
     return ((type(a:subj)==type({}))?
                 \(index(values(map(copy(a:subj), a:chk)), 0)!=-1):
                 \(index(map(copy(a:subj), a:chk), 0)!=-1))
 endfunction
-"{{{2 main: session
-"{{{3 session: поддержка LoadCommand mksession
+"{{{1 main: session
+"{{{2 session: поддержка LoadCommand mksession
 function s:F.session(...)
     if empty(a:000)
         let r={}
@@ -257,9 +255,9 @@ function s:F.session(...)
         endfor
     endif
 endfunction
-"{{{2 comm: save, getresult, gettranssymb
+"{{{1 comm: save, getresult, gettranssymb
 " Функции, нужные для транслитерации
-"{{{3 comm.remove: Удалить указанный id из кэша
+"{{{2 comm.remove: Удалить указанный id из кэша
 function s:F.comm.remove(id)
     for cache in s:cache.trans
         call remove(cache, a:id)
@@ -270,7 +268,7 @@ function s:F.comm.remove(id)
         lockvar s:cache.trans[1][i].id
     endfor
 endfunction
-"{{{3 comm.save: сохранить изменения
+"{{{2 comm.save: сохранить изменения
 function s:F.comm.save(transsymb)
     let id=a:transsymb.id
     if a:transsymb.origin isnot# s:cache.trans[0][id]
@@ -291,11 +289,11 @@ function s:F.comm.save(transsymb)
     endif
     return 0
 endfunction
-"{{{3 comm.getresult: преобразовать результат в соответствие с флагами
+"{{{2 comm.getresult: преобразовать результат в соответствие с флагами
 function s:F.comm.getresult(result, flags)
     " Что-то изменяем, только если есть флаг верхнего регистра
     if a:flags.upper==1
-        "{{{4 Если изменять регистр должна только первая буква
+        "{{{3 Если изменять регистр должна только первая буква
         if a:flags.fstupper==1
             " К сожалению, regex «\l» работает далеко не всегда
             let slist=split(a:result, '\zs')
@@ -310,7 +308,7 @@ function s:F.comm.getresult(result, flags)
                 let idx+=1
             endwhile
             return join(slist, '')
-        "{{{4 Если такого нет, но есть флаг верхнего регистра
+        "{{{3 Если такого нет, но есть флаг верхнего регистра
         else
             return toupper(a:result)
         endif
@@ -318,13 +316,13 @@ function s:F.comm.getresult(result, flags)
     endif
     return a:result
 endfunction
-"{{{3 comm.checktrkey: проверить ключ
+"{{{2 comm.checktrkey: проверить ключ
 function s:F.comm.checktrkey(key, value, where)
-    "{{{4 Объявление переменных
+    "{{{3 Объявление переменных
     let vtype=type(a:value)
-    "{{{4 Если ключ — не один символ
+    "{{{3 Если ключ — не один символ
     if a:key!~'^.$'
-        "{{{5 Ключ «none»
+        "{{{4 Ключ «none»
         if a:key is# 'none'
             if vtype!=type('')
                 call s:_f.warn('str', a:where)
@@ -335,42 +333,42 @@ function s:F.comm.checktrkey(key, value, where)
             else
                 return 0
             endif
-        "{{{5 Ключ «options»
+        "{{{4 Ключ «options»
         elseif a:key is# 'options'
-            "{{{6 Значение — словарь,
+            "{{{5 Значение — словарь,
             if vtype!=type({})
                 call s:_f.warn('dict', a:where)
                 return 1
-            "{{{6 не являющийся пустым,
+            "{{{5 не являющийся пустым,
             elseif a:value=={}
                 return 0
-            "{{{6 имеющего строковый тип и значение «capital»,
+            "{{{5 имеющего строковый тип и значение «capital»,
             elseif s:F.stuf.checklod(copy(a:value),
                         \       'type(v:key)==type("") && v:key is# "capital"')
                 call s:_f.warn('uknkey', a:where.'/...')
                 return 1
-            "{{{6 которому соответствует строковое значение,
+            "{{{5 которому соответствует строковое значение,
             elseif type(a:value.capital)!=type('')
                 call s:_f.warn('str', a:where.'/capital')
                 return 1
-            "{{{6 равное одной из строк: «none» или «first».
+            "{{{5 равное одной из строк: «none» или «first».
             elseif       a:value.capital isnot# 'none' &&
                         \a:value.capital isnot# 'first'
                 call s:_f.warn('invvalue', a:where.'/capital', a:value.capital)
                 return 1
             endif
-        "{{{5 Ключ «include»
+        "{{{4 Ключ «include»
         elseif a:key is# 'include'
             if type(a:value)!=type([])
                 call s:_f.warn('klist', a:where)
                 return 1
             endif
-        "{{{5 Неизвестный ключ
+        "{{{4 Неизвестный ключ
         else
             call s:_f.warn('uknkey', a:where)
             return 1
         endif
-    "{{{4 Односимвольный ключ
+    "{{{3 Односимвольный ключ
     else
         if vtype==type('')
             return 0
@@ -384,7 +382,7 @@ function s:F.comm.checktrkey(key, value, where)
     "}}}
     return 0
 endfunction
-"{{{3 comm.checktranssymb: проверить таблицу транслитерации
+"{{{2 comm.checktranssymb: проверить таблицу транслитерации
 function s:F.comm.checktranssymb(transsymb, where)
     let errclist=values(map(copy(a:transsymb),
                 \'s:F.comm.checktrkey(v:key, v:val, a:where."/".v:key)'))
@@ -394,32 +392,32 @@ function s:F.comm.checktranssymb(transsymb, where)
     endfor
     return result
 endfunction
-"{{{3 comm.formattr: перевести таблицу транслитерации во внутренний формат
+"{{{2 comm.formattr: перевести таблицу транслитерации во внутренний формат
 function s:F.comm.formattr(transsymb)
-    "{{{4 Таблица — словарь
+    "{{{3 Таблица — словарь
     if type(a:transsymb)==type({})
-        "{{{5 Объявление переменных
+        "{{{4 Объявление переменных
         let result={}
-        "{{{5 Обход ключей
+        "{{{4 Обход ключей
         for [key, value] in items(a:transsymb)
-            "{{{6 Односимвольный ключ
+            "{{{5 Односимвольный ключ
             if key=~'^.$'
                 let lower=tolower(key)
-                "{{{7 Такой ключ уже есть
+                "{{{6 Такой ключ уже есть
                 if has_key(result, lower)
                     let result[lower][(key isnot# lower)]=
                                 \s:F.comm.formattr(value)
-                "{{{7 Такого ключа нет
+                "{{{6 Такого ключа нет
                 else
-                    "{{{8 Ключ в верхем регистре
+                    "{{{7 Ключ в верхем регистре
                     if lower isnot# key
                         let result[lower]=
                                     \[0, s:F.comm.formattr(value)]
-                    "{{{8 В нижнем
+                    "{{{7 В нижнем
                     else
                         let result[lower]=
                                     \[s:F.comm.formattr(value), 1]
-                        "{{{9 Проверка настроек
+                        "{{{8 Проверка настроек
                         if type(value)==type({}) &&
                                     \has_key(value, 'options') &&
                                     \has_key(value.options, 'capital')
@@ -430,14 +428,14 @@ function s:F.comm.formattr(transsymb)
                                 let result[lower][1]=2
                             endif
                         endif
-                        "}}}9
+                        "}}}8
                     endif
-                    "}}}8
+                    "}}}7
                 endif
-            "{{{6 Ключ «none»
+            "{{{5 Ключ «none»
             elseif key is# 'none'
                 let result.none=value
-            "{{{6 Ключ «include»
+            "{{{5 Ключ «include»
             elseif key is# 'include'
                 let newtrs=map(copy(value),'copy(s:F.comm.gettranssymb(v:val))')
                 for transsymb in newtrs
@@ -452,18 +450,18 @@ function s:F.comm.formattr(transsymb)
                 endfor
                 unlet newtrs
             endif
-            "}}}6
+            "}}}5
             unlet value
         endfor
-        "}}}5
+        "}}}4
         return result
-    "{{{4 Таблица — не словарь (строка)
+    "{{{3 Таблица — не словарь (строка)
     else
         return {'none': a:transsymb}
     endif
     "}}}
 endfunction
-"{{{3 comm.newcache:     добавить запись в кэш
+"{{{2 comm.newcache:     добавить запись в кэш
 function s:F.comm.newcache(srctrans, innertrans)
     let a:innertrans.id=len(s:cache.trans[0])
     call add(s:cache.trans[0], deepcopy(a:srctrans))
@@ -471,10 +469,10 @@ function s:F.comm.newcache(srctrans, innertrans)
     call add(s:cache.trans[2], deepcopy(s:cache.init.print))
     call add(s:cache.trans[3], [])
 endfunction
-"{{{3 comm.gettranssymb: получить таблицу транслитерации
+"{{{2 comm.gettranssymb: получить таблицу транслитерации
 let s:usedtranssymbs=[]
 function s:F.comm.gettranssymb(...)
-    "{{{4 Получение таблицы внешнего формата
+    "{{{3 Получение таблицы внешнего формата
     let d={}
     if a:0 && a:1 isnot 0
         let d.Trans=a:1
@@ -526,7 +524,7 @@ function s:F.comm.gettranssymb(...)
         call s:_f.warn('itrans')
         return 0
     endif
-    "{{{4 Кэш
+    "{{{3 Кэш
     let idx=index(s:cache.trans[0], rettrans)
     let docheck=1
     if idx!=-1 && s:cache.trans[1][idx]!={}
@@ -548,9 +546,9 @@ function s:F.comm.gettranssymb(...)
             endif
         endwhile
     endif
-    "{{{4 Получение таблицы транслитерации внут. формата и запись её в кэш
+    "{{{3 Получение таблицы транслитерации внут. формата и запись её в кэш
     if docheck
-        "{{{5 Проверка правильности
+        "{{{4 Проверка правильности
         if s:F.comm.checktranssymb(rettrans, '')
             return 0
         endif
@@ -558,7 +556,7 @@ function s:F.comm.gettranssymb(...)
         if curtrans is 0
             return 0
         endif
-        "}}}5
+        "}}}4
     else
         let curtrans=deepcopy(s:cache.trans[1][fidx])
         unlet curtrans.origin
@@ -577,7 +575,7 @@ function s:F.comm.gettranssymb(...)
     endif
     lockvar! result
     unlockvar! result.origin
-    "}}}4
+    "}}}3
     return result
 endfunction
 call s:_f.postresource('usedtranssymbs', s:usedtranssymbs)
@@ -588,8 +586,8 @@ function s:F.comm.gettranssymb_throw(...)
     endif
     return r
 endfunction
-"{{{2 trs:  main(transliterate): обычная транслитерация
-"{{{3 Default flags and status
+"{{{1 trs:  main(transliterate): обычная транслитерация
+"{{{2 Default flags and status
 let s:trsdefflags={
             \      'upper': -1,
             \   'fstupper': 0,
@@ -600,8 +598,8 @@ let s:trsdefstatus={
             \     'result': '',
             \      'delta':  0,
             \}
-"{{{3 trs.plug: дополнения для обычной транслитерации
-"{{{4 trs.plug.esc: экранировать следующий символ
+"{{{2 trs.plug: дополнения для обычной транслитерации
+"{{{3 trs.plug.esc: экранировать следующий символ
 function s:F.trs.plug.esc(match, str, transsymb, cache, flags)
     let result=s:F.stuf.nextchar(a:str)
     let rlen=len(result)
@@ -615,7 +613,7 @@ function s:F.trs.plug.esc(match, str, transsymb, cache, flags)
                 \ 'flags': a:flags,
             \}
 endfunction
-"{{{4 trs.plug.notransword: не транслитерировать следующее слово
+"{{{3 trs.plug.notransword: не транслитерировать следующее слово
 function s:F.trs.plug.notransword(match, str, transsymb, cache, flags)
     let result=a:cache.NoTransWord.value[a:match]
     let ntr=matchstr(a:str, '\v^\S*')
@@ -628,9 +626,9 @@ function s:F.trs.plug.notransword(match, str, transsymb, cache, flags)
                 \ 'flags': copy(s:trsdefflags),
             \}
 endfunction
-"{{{4 trs.plug.notrans: временное прерывание транслитерации
+"{{{3 trs.plug.notrans: временное прерывание транслитерации
 function s:F.trs.plug.notrans(match, str, transsymb, cache, flags)
-    let  result=a:cache.StopTrSymbs.value[a:match]
+    let result=a:cache.StopTrSymbs.value[a:match]
     let ntrstr=''
     let startstr=''
     let delta=0
@@ -650,8 +648,13 @@ function s:F.trs.plug.notrans(match, str, transsymb, cache, flags)
         let slen=len(a:str)
         let startstr=''
         while delta<slen
+            " XXX (%()@>) is not the same as ()@> due to NFA regexp engine bug 
+            " present in recent vim versions as reported in
+            "   https://groups.google.com/forum/#!topic/vim_dev/DTA0LrEFBDc
+            " : “[BUG] New regexp engine bug: capturing group with @> voids all 
+            " preceding capturing groups contents”
             let ntr=matchlist(a:str,
-                        \'\v^(\_.{-})\C(%('.escreg.')*)@>'.
+                        \'\v^(\_.{-})\C(%(%('.escreg.')*)@>)'.
                         \   '('.startreg.')', delta)
             let esccount=len(ntr[2])/a:cache.EscSeq.len
             let delta+=len(ntr[0])
@@ -674,19 +677,19 @@ function s:F.trs.plug.notrans(match, str, transsymb, cache, flags)
                 \ 'flags': copy(s:trsdefflags),
             \}
 endfunction
-"{{{4 trs.plug.brk: прерывание транслитерируемой последовательности
-"{{{5 s:trsbrkresult
+"{{{3 trs.plug.brk: прерывание транслитерируемой последовательности
+"{{{4 s:trsbrkresult
 let s:trsbrkresult={
                 \'status': 'success',
                 \'result': '',
                 \ 'delta':  0,
                 \ 'flags': s:trsdefflags,
             \}
-"}}}5
+"}}}4
 function s:F.trs.plug.brk(match, str, transsymb, cache, flags)
     return deepcopy(s:trsbrkresult)
 endfunction
-"{{{3 trs.plugrun: запуск дополнений
+"{{{2 trs.plugrun: запуск дополнений
 function s:F.trs.plugrun(plug, str, transsymb, cache, flags)
     let matchidx=match(a:str, '\v^\C%('.(a:plug[1]).')')
     if matchidx==0
@@ -698,7 +701,7 @@ function s:F.trs.plugrun(plug, str, transsymb, cache, flags)
     endif
     return s:trsdefstatus
 endfunction
-"{{{3 trs.setstatus: изменение возвращаемого результата
+"{{{2 trs.setstatus: изменение возвращаемого результата
 function s:F.trs.setstatus(retstatus, lastret)
     if a:lastret.status isnot# 'failure'
         let result=s:F.comm.getresult(a:lastret.result,
@@ -715,13 +718,13 @@ function s:F.trs.setstatus(retstatus, lastret)
     endif
     return a:retstatus
 endfunction
-"{{{3 trs.transliterate: транслитерация одной последовательности
+"{{{2 trs.transliterate: транслитерация одной последовательности
 function s:F.trs.transliterate(str, transsymb, cache, flags)
-    "{{{4 Объявление переменных
+    "{{{3 Объявление переменных
     let retstatus=copy(s:trsdefstatus)
     let retstatus.flags=a:flags
     let chknone=!retstatus.flags.transbeg
-    "{{{4 Плагины, которые надо запускать до транслитерации
+    "{{{3 Плагины, которые надо запускать до транслитерации
     for plug in a:cache.Plugs.Before
         let lastret=s:F.trs.plugrun(plug, a:str[(retstatus.delta):],
                     \a:transsymb, a:cache, retstatus.flags)
@@ -734,15 +737,15 @@ function s:F.trs.transliterate(str, transsymb, cache, flags)
             break
         endif
     endfor
-    "{{{4 Транслитерация
-    "{{{5 Объявление переменных
+    "{{{3 Транслитерация
+    "{{{4 Объявление переменных
     let curch=s:F.stuf.nextchar(a:str, retstatus.delta)
     let lower=tolower(curch)
-    "{{{5 Если есть ключ, соответствующий следующему символу
+    "{{{4 Если есть ключ, соответствующий следующему символу
     if has_key(a:transsymb, lower) && retstatus.status isnot# 'success' &&
                 \retstatus.status isnot# 'plugsuccess'
         let [lwtrans, uptrans]=a:transsymb[lower]
-        "{{{6 Флаги
+        "{{{5 Флаги
         if type(uptrans)==type(0)
             if uptrans==2
                 let retstatus.flags.fstupper=1
@@ -755,7 +758,7 @@ function s:F.trs.transliterate(str, transsymb, cache, flags)
         if  retstatus.flags.upper==-1 && hasupper
             let retstatus.flags.upper=isupper
         endif
-        "{{{6 Транслитерация
+        "{{{5 Транслитерация
         let dlen=retstatus.delta+len(curch)
         let flags=copy(retstatus.flags)
         let flags.transbeg=0
@@ -771,7 +774,7 @@ function s:F.trs.transliterate(str, transsymb, cache, flags)
         else
             let lastret=s:trsdefstatus
         endif
-        "{{{6 Успешное завершение
+        "{{{5 Успешное завершение
         if lastret.status isnot# 'failure'
             let transbeg=retstatus.flags.transbeg
             call s:F.trs.setstatus(retstatus, lastret)
@@ -782,9 +785,9 @@ function s:F.trs.transliterate(str, transsymb, cache, flags)
             endif
             let chknone=0
         endif
-        "}}}6
+        "}}}5
     endif
-    "{{{5 Если есть ключ «none» и его надо проверить
+    "{{{4 Если есть ключ «none» и его надо проверить
     " Проверять его надо в случае, если это не первая итерация (за это 
     " ответственен флаг transbeg), и транслитерация не завершилась успехом 
     " ранее
@@ -797,7 +800,7 @@ function s:F.trs.transliterate(str, transsymb, cache, flags)
                     \ 'flags': retstatus.flags,
                 \})
     endif
-    "{{{4 Плагины, которые надо запускать после транслитерации
+    "{{{3 Плагины, которые надо запускать после транслитерации
     if retstatus.status isnot# 'success' && retstatus.flags.transbeg
         if retstatus.status isnot# 'plugsuccess'
             for plug in a:cache.Plugs.After
@@ -820,11 +823,11 @@ function s:F.trs.transliterate(str, transsymb, cache, flags)
             let retstatus.status='failure'
         endif
     endif
-    "}}}4
+    "}}}3
     return retstatus
 endfunction
-"{{{3 trs.getplugin
-"{{{4 s:plugregex
+"{{{2 trs.getplugin
+"{{{3 s:plugregex
 " plugregex — словарь, в котором написано для каких плагинов нужны какие
 "             регулярные выражения, полученные из настроек
 let s:plugregex={
@@ -833,7 +836,7 @@ let s:plugregex={
             \           'esc': 'EscSeq',
             \       'notrans': 'StopTrSymbs',
             \}
-"}}}4
+"}}}3
 function s:F.trs.getplugin(plugin, cache)
     if type(a:plugin)==type('')
         let regex=a:cache[s:plugregex[a:plugin]].regex
@@ -844,18 +847,18 @@ function s:F.trs.getplugin(plugin, cache)
     endif
     return a:plugin
 endfunction
-"{{{3 trs.main: транслитерация всей строки
-"{{{4 s:stropt, s:dictstrstropt
+"{{{2 trs.main: транслитерация всей строки
+"{{{3 s:stropt, s:dictstrstropt
 "    stropt — перечисление настроек строкового типа, которые нужно превратить
 "             в регулярные выражения
 " dictstrstropt — то же самое для настроек-словарей с парами строка-строка
-"}}}4
+"}}}3
 let s:stropt=['EscSeq', 'BrkSeq']
 let s:dictstrstropt=['StartTrSymbs', 'StopTrSymbs', 'NoTransWord']
 function s:F.trs.main(str, transsymb)
-    "{{{4 Кэш: настройки
+    "{{{3 Кэш: настройки
     let cache={}
-    "{{{5 Простые строковые
+    "{{{4 Простые строковые
     for O in s:stropt
         let opt=s:_f.getoption(O)
         if !empty(opt)
@@ -867,7 +870,7 @@ function s:F.trs.main(str, transsymb)
     endfor
     let cache.EscSeq.len=len(cache.EscSeq.value)
     unlet opt
-    "{{{5 Словарь {строка: строка, …}
+    "{{{4 Словарь {строка: строка, …}
     for O in s:dictstrstropt
         let opt=s:_f.getoption(O)
         let optregexs = map(copy(opt), 'escape(v:key, "\\")')
@@ -877,7 +880,7 @@ function s:F.trs.main(str, transsymb)
         endif
         call extend(cache, {(O): {'value': opt, 'regex': optregex}})
     endfor
-    "{{{5 Плагины
+    "{{{4 Плагины
     let plugs=s:_f.getoption('Plugs')
     let cache.Plugs={'Before': [], 'After': []}
     for key in keys(plugs)
@@ -885,24 +888,24 @@ function s:F.trs.main(str, transsymb)
                     \                   's:F.trs.getplugin(v:val, cache)'),
                     \               'type(v:val)=='.type([]))
     endfor
-    "}}}5
+    "}}}4
     lockvar! cache
-    "{{{4 Объявление переменных
+    "{{{3 Объявление переменных
     let result=''
     let str=a:str
     let flags=copy(s:trsdefflags)
     let flags.transbeg=1
-    "{{{4 Основной цикл
+    "{{{3 Основной цикл
     while len(str)
         let lastret=s:F.trs.transliterate(str, a:transsymb, cache, copy(flags))
         let result.=lastret.result
         let str=str[(lastret.delta):]
     endwhile
-    "}}}4
+    "}}}3
     return result
 endfunction
-"{{{2 tof:  setup, stop, transchar: транслитерация по мере ввода
-"{{{3 augroup ToFBufDict
+"{{{1 tof:  setup, stop, transchar: транслитерация по мере ввода
+"{{{2 augroup ToFBufDict
 let s:tofbufdicts={}
 function s:F.tof.adddict(bufnr)
     if exists('s:toftranssymb') && !has_key(s:tofbufdicts, a:bufnr)
@@ -919,7 +922,7 @@ augroup ToFBufDict
     autocmd BufAdd     * :call s:F.tof.adddict(expand('<abuf>'))
 augroup END
 let s:_augroups=get(s:, '_augroups', [])+['ToFBufDict']
-"{{{3 Some globals
+"{{{2 Some globals
 let s:tofuntrcp={'time': 0, 'buffer': 0}
 let s:tofuntrcpchars=[]
 let s:tofdefflags={
@@ -930,7 +933,7 @@ let s:failresult={'status': 'failure',}
 let s:tofinitvars={'notrans': 0, 'notransword': 0, 'ntword': '',
             \      'ntwline': 0,}
 let s:bs="\ecl"
-"{{{3 tof.*_w: Поддержка нестандартных способов ввода
+"{{{2 tof.*_w: Поддержка нестандартных способов ввода
 function s:F.tof.conque_w(str)
     let str=''
     if type(a:str)==type('')
@@ -951,8 +954,8 @@ function s:F.tof.conque_w(str)
         call 'normal! i'.str
     endif
 endfunction
-"{{{3 tof.plug: плагины для транслитерации по мере ввода
-"{{{4 tof.plug.notrans: временно прервать транслитерацию
+"{{{2 tof.plug: плагины для транслитерации по мере ввода
+"{{{3 tof.plug.notrans: временно прервать транслитерацию
 function s:F.tof.plug.notrans(bufdict, char)
     if a:bufdict.vars.notrans
         if ((a:bufdict.vars.notrans==2)?
@@ -982,13 +985,13 @@ function s:F.tof.plug.notrans(bufdict, char)
     endif
     return s:failresult
 endfunction
-"{{{4 tof.plug.brk: прервать транслитерируемую последовательность
+"{{{3 tof.plug.brk: прервать транслитерируемую последовательность
 let s:tofbrkresult={'status': 'success',
             \       'result': ''}
 function s:F.tof.plug.brk(bufdict, char)
     return s:tofbrkresult
 endfunction
-"{{{4 tof.plug.comm: Транслитерировать только внутри комментария
+"{{{3 tof.plug.comm: Транслитерировать только внутри комментария
 function s:F.tof.plug.comm(bufdict, char)
     if s:F.tof.insyn('.', '.', 'comment')
         return s:failresult
@@ -996,7 +999,7 @@ function s:F.tof.plug.comm(bufdict, char)
     return      {'status': 'success',
                 \'result': s:F.tof.getuntrans(a:bufdict, a:char)}
 endfunction
-"{{{4 tof.plug.notransword: Не транслитерировать следующее слово
+"{{{3 tof.plug.notransword: Не транслитерировать следующее слово
 function s:F.tof.plug.notransword(bufdict, char)
     if a:bufdict.vars.notransword
         let curline=line('.')
@@ -1023,7 +1026,7 @@ function s:F.tof.plug.notransword(bufdict, char)
     endif
     return s:failresult
 endfunction
-"{{{3 tof.insyn
+"{{{2 tof.insyn
 function s:F.tof.insyn(line, col, reg)
     let line=line(a:line)
     let col=col(a:col)
@@ -1052,7 +1055,7 @@ function s:F.tof.insyn(line, col, reg)
     endwhile
     return 0
 endfunction
-"{{{3 tof.plugrun: запустить плагин
+"{{{2 tof.plugrun: запустить плагин
 function s:F.tof.plugrun(bufdict, char, plug, idx)
     let retstatus=call(a:plug[0], [a:bufdict, a:char], {})
     if retstatus.status is# 'started' && index(a:bufdict.curplugs, a:idx)==-1
@@ -1062,12 +1065,12 @@ function s:F.tof.plugrun(bufdict, char, plug, idx)
     endif
     return retstatus
 endfunction
-"{{{3 tof.getuntrans: получить нетранслитерированный результат
+"{{{2 tof.getuntrans: получить нетранслитерированный результат
 function s:F.tof.getuntrans(bufdict, char)
     if has_key(a:bufdict.exmaps, a:char)
         let exmap=a:bufdict.exmaps[a:char]
         if type(a:bufdict.writefunc)==type(0)
-            "{{{4 Попытка предотвращения рекурсивных вызовов
+            "{{{3 Попытка предотвращения рекурсивных вызовов
             if a:bufdict.bufnr>0
                 let untrcp= {  'time': localtime(),
                             \'buffer': a:bufdict.bufnr}
@@ -1085,7 +1088,7 @@ function s:F.tof.getuntrans(bufdict, char)
                     call add(s:tofuntrcpchars, a:char)
                 endif
             endif
-            "}}}4
+            "}}}3
             " Не парим себе мозги относительно того, что надо вернуть, чтобы 
             " привязка работала как будто транслитерация по мере ввода не 
             " запущена
@@ -1104,7 +1107,7 @@ function s:F.tof.getuntrans(bufdict, char)
     endif
     return a:char
 endfunction
-"{{{3 tof.testbreak: определить, надо ли завершать последовательность
+"{{{2 tof.testbreak: определить, надо ли завершать последовательность
 function s:F.tof.testbreak(bufdict, char)
     let [curline, curcol]=getpos('.')[1:2]
     if a:bufdict.lastline!=curline && a:bufdict.lastline!=curline-1
@@ -1124,11 +1127,11 @@ endfunction
 function s:F.tof.testbreakdummy(...)
     return 0
 endfunction
-"{{{3 tof.transchar: обработать полученный символ
+"{{{2 tof.transchar: обработать полученный символ
 function s:F.tof.transchar(bufdict, char)
     let lower=tolower(a:char)
-    "{{{4 Плагины
-    "{{{5 Если сейчас действует плагин
+    "{{{3 Плагины
+    "{{{4 Если сейчас действует плагин
     let plugresult=''
     for idx in a:bufdict.curplugs
         let retstatus=s:F.tof.plugrun(a:bufdict, a:char,
@@ -1143,7 +1146,7 @@ function s:F.tof.transchar(bufdict, char)
             endif
         endif
     endfor
-    "{{{5 Если нет действующего плагина
+    "{{{4 Если нет действующего плагина
     if len(a:bufdict.curtrans)==1
         let i=0
         while i<len(a:bufdict.plugs)
@@ -1165,8 +1168,8 @@ function s:F.tof.transchar(bufdict, char)
             let i+=1
         endwhile
     endif
-    "{{{4 Транслитерация
-    "{{{5 Объявление переменных
+    "{{{3 Транслитерация
+    "{{{4 Объявление переменных
     let isupper=(lower isnot# a:char)
     let [curline, curcol]=getpos('.')[1:2]
     let curlinestr=''
@@ -1175,7 +1178,7 @@ function s:F.tof.transchar(bufdict, char)
     else
         let curlinestr=substitute(getline(curline)[:(curcol-1)], '.$', '', '')
     endif
-    "{{{5 Прерывание последовательности
+    "{{{4 Прерывание последовательности
     if len(a:bufdict.curtrans)>1 && (a:bufdict.testbreak(a:bufdict, a:char) ||
                 \ (isupper && a:bufdict.flags.upper==0 &&
                 \  !(has_key(a:bufdict.curtrans[-1], lower) &&
@@ -1183,11 +1186,11 @@ function s:F.tof.transchar(bufdict, char)
         return s:F.tof.transbreak(a:bufdict, a:char, plugresult)
     endif
     let a:bufdict.lastline=curline
-    "{{{5 Собственно, транслитерация
+    "{{{4 Собственно, транслитерация
     if has_key(a:bufdict.curtrans[-1], lower)
-        "{{{6 Таблица транслитерации
+        "{{{5 Таблица транслитерации
         let [lwtrans, uptrans]=a:bufdict.curtrans[-1][lower]
-        "{{{7 Верхний регистр
+        "{{{6 Верхний регистр
         if isupper
             let a:bufdict.flags.upper=(1 && a:bufdict.flags.upper!=0)
             " Есть вариант для символа в верхем регистре
@@ -1202,7 +1205,7 @@ function s:F.tof.transchar(bufdict, char)
             elseif uptrans==0
                 return s:F.tof.transbreak(a:bufdict, a:char, plugresult)
             endif
-        "{{{7 Не верхий регистр
+        "{{{6 Не верхий регистр
         elseif type(lwtrans)==type({})
             let curtrans=lwtrans
             if a:bufdict.flags.upper==-1 && lower isnot# toupper(a:char)
@@ -1215,20 +1218,20 @@ function s:F.tof.transchar(bufdict, char)
                     let a:bufdict.flags.fstupper=1
                 endif
             endif
-        "{{{7 Символ отсутствует в таблице транслитерации
+        "{{{6 Символ отсутствует в таблице транслитерации
         else
             return s:F.tof.transbreak(a:bufdict, a:char, plugresult)
         endif
-        "}}}7
+        "}}}6
         call add(a:bufdict.curtrans, curtrans)
         let bsseq=''
-        "{{{6 Транслитерация символа
+        "{{{5 Транслитерация символа
         if has_key(curtrans, 'none')
             " Результат транслитерации
             let result=s:F.comm.getresult(curtrans.none, a:bufdict.flags)
             " Замена предыдущего результата транслитерации
             let bsseq=repeat(s:bs, s:F.stuf.strlen(a:bufdict.curtrseq))
-            "{{{7 Combining diacritics
+            "{{{6 Combining diacritics
             let fch=s:F.stuf.nextchar(a:bufdict.curtrseq)
             let a:bufdict.curtrseq=result
             let combd=s:F.stuf.iscombining(fch)
@@ -1243,24 +1246,24 @@ function s:F.tof.transchar(bufdict, char)
                 let ch=matchstr(curlinestr, '\v.$')
                 let result=(ch[:(-1-combdlen)]).result
             endif
-            "}}}7
+            "}}}6
         else
             let a:bufdict.curtrseq.=(a:char)
             let result=a:char
         endif
         return bsseq.plugresult.result
-        "}}}6
+        "}}}5
     else
         return s:F.tof.transbreak(a:bufdict, a:char, plugresult)
     endif
-    "{{{4 Несколько символов
+    "{{{3 Несколько символов
     let clist=split(a:char, '\zs')
     if len(clist)>1
         return join(map(clist, 's:F.tof.transchar(a:bufdict, v:val)'), '')
     endif
-    "}}}4
+    "}}}3
 endfunction
-"{{{3 tof.transbreak: прервать последовательность
+"{{{2 tof.transbreak: прервать последовательность
 " Прервать последовательность и, возможно, вызвать tof.transchar
 function s:F.tof.transbreak(bufdict, char, ...)
     let dotrans=(len(a:bufdict.curtrans)>1)
@@ -1271,7 +1274,7 @@ function s:F.tof.transbreak(bufdict, char, ...)
         return ((len(a:000))?(a:000[0]):('')).a:char
     endif
 endfunction
-"{{{3 tof.breakseq: прервать последовательность
+"{{{2 tof.breakseq: прервать последовательность
 function s:F.tof.breakseq(bufdict)
     let a:bufdict.curtrans=[a:bufdict.transsymb]
     let a:bufdict.curtrseq=''
@@ -1280,7 +1283,7 @@ function s:F.tof.breakseq(bufdict)
     let a:bufdict.vars=deepcopy(s:tofinitvars)
     return 1
 endfunction
-"{{{3 tof.map: создать привязку
+"{{{2 tof.map: создать привязку
 function s:F.tof.map(bufdict, char)
     if empty(a:char)
         return 0
@@ -1312,7 +1315,7 @@ function s:F.tof.map(bufdict, char)
             \})
     return 1
 endfunction
-"{{{3 tof.formattrlistch: список всех символов
+"{{{2 tof.formattrlistch: список всех символов
 " Создать список всех символов в таблице транслитерации
 function s:F.tof.formattrlistch(transsymb)
     " Словарь выбран для того, чтобы не заботится об уникальности символа.
@@ -1339,7 +1342,7 @@ function s:F.tof.formattrlistch(transsymb)
     endfor
     return result
 endfunction
-"{{{3 tof.addtochlist: добавить символы к списку символов
+"{{{2 tof.addtochlist: добавить символы к списку символов
 function s:F.tof.addtochlist(bufdict, char)
     if index(a:bufdict.chlist, a:char)==-1
         call add(a:bufdict.chlist, a:char)
@@ -1350,14 +1353,14 @@ function s:F.tof.addtochlist(bufdict, char)
     endif
     return 1
 endfunction
-"{{{3 tof.addoption: добавить настройку
-"{{{4 s:opttypes: типы настроек
+"{{{2 tof.addoption: добавить настройку
+"{{{3 s:opttypes: типы настроек
 let s:opttypes={
             \'str': ['EscSeq', 'BrkSeq', 'CmdPrefix'],
             \'dictstrstr': ['StartTrSymbs', 'StopTrSymbs', 'NoTransWord'],
             \'bool': ['UsePython'],
         \}
-"}}}4
+"}}}3
 function s:F.tof.addoption(bufdict, option)
     let opt=s:_f.getoption(a:option)
     let a:bufdict.opts[a:option]={'value': (opt),}
@@ -1368,8 +1371,8 @@ function s:F.tof.addoption(bufdict, option)
     endif
     return 1
 endfunction
-"{{{3 tof.addplugin: добавить плагин
-"{{{4 s:tofplug, s:plugopts, s:blankkeys
+"{{{2 tof.addplugin: добавить плагин
+"{{{3 s:tofplug, s:plugopts, s:blankkeys
 let s:blankkeys=[' ', "\<C-m>"]
 let s:plugopts={
             \'notrans'    : ['StartTrSymbs', 'StopTrSymbs'],
@@ -1385,7 +1388,7 @@ let s:tofplug={
             \                  's:blankkeys',
             \   'brk': '[a:bufdict.opts.BrkSeq.value]',
             \}
-"}}}4
+"}}}3
 function s:F.tof.addplugin(bufdict, plugin)
     if type(a:plugin)==type('')
         if has_key(s:plugopts, a:plugin)
@@ -1406,9 +1409,9 @@ function s:F.tof.addplugin(bufdict, plugin)
     endif
     return 1
 endfunction
-"{{{3 tof.makemaps: создать привязки
+"{{{2 tof.makemaps: создать привязки
 function s:F.tof.makemaps(bufdict)
-    "{{{4 Кэш
+    "{{{3 Кэш
     let id=a:bufdict.transsymb.id
     if !empty(s:cache.trans[3][id])
         let chars=s:cache.trans[3][id]
@@ -1418,7 +1421,7 @@ function s:F.tof.makemaps(bufdict)
         lockvar! chars
     endif
     let a:bufdict.chlist=copy(chars)
-    "{{{4 Плагины
+    "{{{3 Плагины
     if !empty(a:bufdict.originplugs)
         let plugs=a:bufdict.originplugs
     else
@@ -1426,22 +1429,22 @@ function s:F.tof.makemaps(bufdict)
         let a:bufdict.originplugs=plugs
     endif
     call map(copy(plugs), 's:F.tof.addplugin(a:bufdict, v:val)')
-    "{{{4 Создание привязок
+    "{{{3 Создание привязок
     call map(copy(a:bufdict.chlist), 's:F.tof.map(a:bufdict, v:val)')
-    "{{{4 Блокировка
+    "{{{3 Блокировка
     lockvar! a:bufdict.chlist
     lockvar! a:bufdict.opts
     lockvar! a:bufdict.plugs
     lockvar! a:bufdict.exmaps
     return 1
 endfunction
-"{{{3 tof.setup: включить транслитерацию по мере ввода
-"{{{4 s:rewritefunc
+"{{{2 tof.setup: включить транслитерацию по мере ввода
+"{{{3 s:rewritefunc
 let s:rewritefunc={
             \'@conque': '<SID>Eval("s:F.tof.conque_w")',
         \}
 lockvar! s:rewritefunc
-"}}}4
+"}}}3
 function s:F.tof.setup(buffer, transsymb, ...)
     if empty(a:000)
         if a:buffer>0
@@ -1495,7 +1498,7 @@ function s:F.tof.setup(buffer, transsymb, ...)
     endif
     return bufdict
 endfunction
-"{{{3 tof.unmap: удалить привязки
+"{{{2 tof.unmap: удалить привязки
 function s:F.tof.unmap(bufdict)
     for M in a:bufdict.chlist
         if empty(M)
@@ -1513,7 +1516,7 @@ function s:F.tof.unmap(bufdict)
     endfor
     return 1
 endfunction
-"{{{3 tof.stop: выключить транслитерацию по мере ввода
+"{{{2 tof.stop: выключить транслитерацию по мере ввода
 function s:F.tof.stop(bufdict)
     let curbuf=bufnr('%')
     if curbuf!=a:bufdict.bufnr
@@ -1526,8 +1529,8 @@ function s:F.tof.stop(bufdict)
     endif
     return 1
 endfunction
-"{{{2 mod:  add, del, setoption, main: изменение таблицы транслитерации
-"{{{3 mod.formattotr
+"{{{1 mod:  add, del, setoption, main: изменение таблицы транслитерации
+"{{{2 mod.formattotr
 " Превратить пару ("...", "smth") в {'.': {'.': {'.': "smth"} } }.
 function s:F.mod.formattotr(srcstr, trstr)
     if empty(a:srcstr)
@@ -1541,7 +1544,7 @@ function s:F.mod.formattotr(srcstr, trstr)
     endfor
     return result
 endfunction
-"{{{3 mod.add: добавить транслитерируемую последовательность
+"{{{2 mod.add: добавить транслитерируемую последовательность
 function s:F.mod.add(srcstr, trstr, replace, transsymb)
     let curch=s:F.stuf.nextchar(a:srcstr)
     let tail=a:srcstr[(len(curch)):]
@@ -1574,7 +1577,7 @@ function s:F.mod.add(srcstr, trstr, replace, transsymb)
         return 1
     endif
 endfunction
-"{{{3 mod.inc: добавить ключ «include»
+"{{{2 mod.inc: добавить ключ «include»
 function s:F.mod.inc(srcstr, incstr, exclude, transsymb)
     let curch=s:F.stuf.nextchar(a:srcstr)
     let tail=a:srcstr[(len(curch)):]
@@ -1632,7 +1635,7 @@ function s:F.mod.inc(srcstr, incstr, exclude, transsymb)
         return 1
     endif
 endfunction
-"{{{3 mod.del: удалить транслитерируемую последовательность
+"{{{2 mod.del: удалить транслитерируемую последовательность
 function s:F.mod.del(srcstr, recurse, transsymb)
     let transsymb=a:transsymb
     let trlist=split(a:srcstr, '\zs')
@@ -1669,15 +1672,15 @@ function s:F.mod.del(srcstr, recurse, transsymb)
     endif
     return 0
 endfunction
-"{{{3 mod.setoption: установить или удалить настройку
+"{{{2 mod.setoption: установить или удалить настройку
 function s:F.mod.setoption(srcstr, option, value, replace, transsymb)
-    "{{{4 Объявление переменных
+    "{{{3 Объявление переменных
     let trlist=split(a:srcstr, '\zs')
     let deloption=(a:replace==2)
     let trans=a:transsymb
     let opt={(a:option): a:value}
     let i=0
-    "{{{4 Цикл
+    "{{{3 Цикл
     while 1
         if has_key(trans, trlist[i])
             if type(trans[trlist[i]])==type({})
@@ -1738,10 +1741,10 @@ function s:F.mod.setoption(srcstr, option, value, replace, transsymb)
         call s:_f.warn('trnf')
         return 0
     endwhile
-    "}}}4
+    "}}}3
     return 1
 endfunction
-"{{{3 mod.main
+"{{{2 mod.main
 " Добавить/удалить транслитерируемую последовательность или настройку
 function s:F.mod.main(action, transsymb, ...)
     let retstatus=call(s:F.mod[a:action], a:000+[a:transsymb.origin], s:F)
@@ -1750,37 +1753,37 @@ function s:F.mod.main(action, transsymb, ...)
     endif
     return s:F.comm.save(a:transsymb)
 endfunction
-"{{{2 prnt: main(print): печать таблицы транслитерации
-"{{{3 prnt.formattrplain: получить список всех последовательностей
+"{{{1 prnt: main(print): печать таблицы транслитерации
+"{{{2 prnt.formattrplain: получить список всех последовательностей
 " В качестве аргументов принимает таблицу транслитерации во внутреннем формате, 
 " начало последовательности (нужно для рекурсии) и флаги (нужно для рекурсии). 
 " Вызывайте со вторым и третьим аргументами, равными пустым строкам.
 function s:F.prnt.formattrplain(transsymb, beginning, flags)
     let result={}
     for key in keys(a:transsymb)
-        "{{{4 Ключ «none»
+        "{{{3 Ключ «none»
         if key is# 'none'
             let trstr=a:transsymb.none
             let flags=a:flags
-            "{{{5 Верхний регистр
+            "{{{4 Верхний регистр
             " Если нет никаких различий между регистрами, то не имеет смысла 
             " писать флаги, влияющие на результат транслитерации верхнего 
             " регистра
             if toupper(a:beginning) is# tolower(a:beginning)
                 let flags=substitute(flags, '[cf]', '', 'g')
             endif
-            "{{{5 Combining diacritics
+            "{{{4 Combining diacritics
             if s:F.stuf.iscombining(
                         \s:F.stuf.nextchar_nr(a:transsymb.none))
                 let trstr='a'.trstr
                 let flags.='d'
             endif
-            "}}}5
+            "}}}4
             let result[a:beginning]=[trstr, flags]
-        "{{{4 Односимвольный ключ
+        "{{{3 Односимвольный ключ
         elseif key=~#'^.$'
             let [lwtrans, uptrans]=(a:transsymb[key])
-            "{{{5 Таблица транслитерации для нижнего или обоих регистров
+            "{{{4 Таблица транслитерации для нижнего или обоих регистров
             if type(lwtrans)==type({})
                 let beginning=(a:beginning).key
                 let flags=a:flags
@@ -1794,27 +1797,27 @@ function s:F.prnt.formattrplain(transsymb, beginning, flags)
                 call extend(result, (s:F.prnt.formattrplain(lwtrans,
                             \                           beginning, flags)))
             endif
-            "{{{5 Таблица транслитерации для верхнего регистра
+            "{{{4 Таблица транслитерации для верхнего регистра
             if type(uptrans)==type({})
                 call extend(result, (s:F.prnt.formattrplain(uptrans,
                             \((a:beginning).(toupper(key))), a:flags)))
             endif
-            "}}}5
+            "}}}4
             unlet lwtrans
             unlet uptrans
         endif
-        "}}}4
+        "}}}3
     endfor
     return result
 endfunction
-"{{{3 prnt.main: напечатать таблицу транслитерации
-"{{{4 prnt.printl
+"{{{2 prnt.main: напечатать таблицу транслитерации
+"{{{3 prnt.printl
 function s:F.prnt.printl(len, str)
     return a:str . repeat(' ', a:len-s:_r.strdisplaywidth(a:str, 0))
 endfunction
-"}}}4
+"}}}3
 function s:F.prnt.main(columns, transsymb)
-    "{{{4 Первая часть — получение списка списков
+    "{{{3 Первая часть — получение списка списков
     let cache=s:cache.trans[2][a:transsymb.id]
     if len(cache[0])
         let [printlist, srclen, trlen, flaglen]=cache[0]
@@ -1833,7 +1836,7 @@ function s:F.prnt.main(columns, transsymb)
     if a:columns==-1
         return deepcopy(printlist)
     endif
-    "{{{4 Количество колонок
+    "{{{3 Количество колонок
     if a:columns==-2
         " columns=(Ширина_окна+Ширина разделителя-1)/
         "           (Максимальная_длина_транслитерируемой последовательности+
@@ -1849,7 +1852,7 @@ function s:F.prnt.main(columns, transsymb)
     else
         let columns=a:columns
     endif
-    "{{{4 Вторая часть — получение списка строк
+    "{{{3 Вторая часть — получение списка строк
     if len(cache[1])
         let printstr=cache[1]
     else
@@ -1863,7 +1866,7 @@ function s:F.prnt.main(columns, transsymb)
     if columns==0
         return copy(printstr)
     endif
-    "{{{4 Третья часть — получение вывода в колонках
+    "{{{3 Третья часть — получение вывода в колонках
     if has_key(cache[2], columns)
         let result=cache[2][columns]
     else
@@ -1891,9 +1894,9 @@ function s:F.prnt.main(columns, transsymb)
         let cache[2][columns]=result
     endif
     return join(result, "\n")
-    "}}}4
+    "}}}3
 endfunction
-"{{{2 Внешние функции
+"{{{1 Внешние функции
 let s:efbodies={
             \'add':     'call(s:F.mod.main,["add",args[-1]]+args[0:2],    {})',
             \'include': 'call(s:F.mod.main,["inc",args[-1]]+args[0:1]+[0],{})',
@@ -1922,11 +1925,11 @@ endfor
 unlet s:key s:val s:efbodies
 call s:_f.postresource('extfunctions', s:extfunctions)
 unlet s:extfunctions
-"{{{2 mng:  управление плагином
-"{{{3 mng.tof: управление транслитерацией по мере ввода
+"{{{1 mng:  управление плагином
+"{{{2 mng.tof: управление транслитерацией по мере ввода
 function s:F.mng.tof(bang, action, ...)
-    "{{{4 Объявление переменных
-    "{{{4 Запуск
+    "{{{3 Объявление переменных
+    "{{{3 Запуск
     if a:action is# 'start'
         let transsymb=s:F.comm.gettranssymb_throw(a:000[0])
         if a:bang
@@ -1950,9 +1953,9 @@ function s:F.mng.tof(bang, action, ...)
             return 0
         endif
         return s:F.tof.setup(bufnr('%'), transsymb)
-    "{{{4 Перезагрузка и остановка
+    "{{{3 Перезагрузка и остановка
     else
-        "{{{5 Остановка
+        "{{{4 Остановка
         if a:action is# 'stop'
             if a:bang
                 if exists('s:toftranssymb')
@@ -1963,7 +1966,7 @@ function s:F.mng.tof(bang, action, ...)
             elseif has_key(s:tofbufdicts, bufnr('%'))
                 return s:F.tof.stop(s:tofbufdicts[bufnr('%')])
             endif
-        "{{{5 Перезагрузка
+        "{{{4 Перезагрузка
         elseif a:action is# 'restart'
             let buf=bufnr('%')
             if has_key(s:tofbufdicts, buf)
@@ -1975,12 +1978,12 @@ function s:F.mng.tof(bang, action, ...)
             return s:F.tof.setup(bufnr('%'), transsymb)
         endif
     endif
-    "}}}4
+    "}}}3
     return 0
 endfunction
-"{{{3 mng.cache: управление кэшем
+"{{{2 mng.cache: управление кэшем
 function s:F.mng.cache(action, ...)
-    "{{{4 Очистка кэша
+    "{{{3 Очистка кэша
     if a:action is# 'purge'
         let target=a:1
         if a:1 is# 'innertrans' || a:1 is# 'trans' || a:1 is# 'all'
@@ -1990,17 +1993,17 @@ function s:F.mng.cache(action, ...)
         elseif a:1 is# 'toftrans'
             call map(s:cache.trans[3], '[]')
         endif
-    "{{{4 Печать кэша
+    "{{{3 Печать кэша
     elseif a:action is# 'show'
-        "{{{5 Объявление переменных
+        "{{{4 Объявление переменных
         let header=(s:_messages.cache.th.trans)
         let i=0
         let clen=len(s:cache.trans[1])
         let lines=[]
-        "{{{5 Получение строк
+        "{{{4 Получение строк
         while i<clen
             call add(lines, [])
-            "{{{6 Первый столбец — источник таблицы
+            "{{{5 Первый столбец — источник таблицы
             let source=(s:cache.trans[1][i].source)
             if source[0] is# 'gvar'
                 call add(lines[-1], s:_messages.cache.trsrc.gvar.' '.source[1])
@@ -2017,7 +2020,7 @@ function s:F.mng.cache(action, ...)
             elseif source[0] is# 'dict'
                 call add(lines[-1], s:_messages.cache.trsrc.dict)
             endif
-            "{{{6 Второй столбец — заполненность кэша для печати
+            "{{{5 Второй столбец — заполненность кэша для печати
             let printcache=s:cache.trans[2][i]
             if printcache[2]!={}
                 call add(lines[-1], (s:_messages.cache.other.col).' '.
@@ -2029,23 +2032,23 @@ function s:F.mng.cache(action, ...)
             else
                 call add(lines[-1], s:_messages.cache.other.no)
             endif
-            "{{{6 Третий столбец — наличие кэша для ToF
+            "{{{5 Третий столбец — наличие кэша для ToF
             if len(s:cache.trans[3][i])
                 call add(lines[-1], s:_messages.cache.other.yes)
             else
                 call add(lines[-1], s:_messages.cache.other.no)
             endif
-            "}}}7
+            "}}}6
             let i+=1
         endwhile
-        "}}}5
+        "}}}4
         call s:_f.printtable(lines, {'header': header})
     endif
-    "}}}4
+    "}}}3
     return 1
 endfunction
-"{{{3 cmdfun.function
-"{{{4 s:cmdactions, s:rewritemode
+"{{{2 cmdfun.function
+"{{{3 s:cmdactions, s:rewritemode
 let s:cmdactions={
             \'add':     's:F.mod.main("add",'.
             \                        's:F.comm.gettranssymb_throw(a:3.to),'.
@@ -2072,11 +2075,11 @@ let s:cmdactions={
 let s:rewritemode={"v": 'char',
             \      "V": 'line',
             \ "\<C-v>": 'block',}
-"}}}4
+"}}}3
 let s:cmdfun={}
 function s:cmdfun.function(bang, startline, endline, action, ...)
-    "{{{4 Действия
-    "{{{5 Транслитерировать
+    "{{{3 Действия
+    "{{{4 Транслитерировать
     if a:action is# 'transliterate'
         if a:1 is# 'lines'
             return s:F.map.translitselection('line', [0, 1, a:startline, 0],
@@ -2087,20 +2090,20 @@ function s:cmdfun.function(bang, startline, endline, action, ...)
                         \                    getpos("'<"), getpos("'>"),
                         \                s:F.comm.gettranssymb_throw(a:2.using))
         endif
-    "{{{5 Напечатать таблицу транслитерации
+    "{{{4 Напечатать таблицу транслитерации
     elseif a:action is# 'print'
         echo s:F.prnt.main(a:1.columns,
                     \      s:F.comm.gettranssymb_throw(a:1.transsymb))
         return 1
-    "{{{5 Действия, описанные в s:cmdactions
+    "{{{4 Действия, описанные в s:cmdactions
     elseif has_key(s:cmdactions, a:action)
         return eval(s:cmdactions[a:action])
     endif
-    "}}}4
+    "}}}3
 endfunction
 call s:_f.postresource('cmd', s:cmdfun.function)
 unlet s:cmdfun
-"{{{2 s:cache: кэш
+"{{{1 s:cache: кэш
 let s:cache={'init':{}}
 " init — значения, которыми инициализируется пустой кэш.
 let s:cache.init.trans=[[], [], [], []]
@@ -2111,8 +2114,8 @@ let s:cache.init.print=[[], [], {}]
 "          представление;
 " Третья — некоторые преобразования функции вывода на печать;
 let s:cache.trans=deepcopy(s:cache.init.trans)
-"{{{2 map: Функции для привязок
-"{{{3 map.getvrange
+"{{{1 map: Функции для привязок
+"{{{2 map.getvrange
 function s:F.map.getvrange(start, end)
     let [sline, scol]=a:start
     let [eline, ecol]=a:end
@@ -2139,7 +2142,7 @@ function s:F.map.getvrange(start, end)
     endif
     return text
 endfunction
-"{{{3 map.delvrange
+"{{{2 map.delvrange
 function s:F.map.delvrange(start, end)
     let [sline, scol]=a:start
     let [eline, ecol]=a:end
@@ -2170,7 +2173,7 @@ function s:F.map.delvrange(start, end)
         execute sline.'normal! gJ'
     endif
 endfunction
-"{{{3 map.insertatposition
+"{{{2 map.insertatposition
 function s:F.map.insertatposition(pos, text)
     if empty(a:text)
         return
@@ -2186,7 +2189,7 @@ function s:F.map.insertatposition(pos, text)
         call append(line, a:text[1:-2]+[a:text[-1].rstr])
     endif
 endfunction
-"{{{3 map.nullnl
+"{{{2 map.nullnl
 " Convert between lines (NL separated strings with NULLs represented as NLs) and 
 " NULL separated strings with NLs represented by NLs.
 function s:F.map.nullnl(text)
@@ -2202,12 +2205,12 @@ function s:F.map.nullnl(text)
     endfor
     return r
 endfunction
-"{{{3 map.trwithnulls
+"{{{2 map.trwithnulls
 function s:F.map.trwithnulls(str, transsymb)
     return join(map(split(a:str, "\n", 1), 's:F.trs.main(v:val, a:transsymb)'),
                 \"\n")
 endfunction
-"{{{3 map.getcol
+"{{{2 map.getcol
 function s:F.map.getcol(linestr, vcol)
     if s:_r.strdisplaywidth(a:linestr, 0)<a:vcol
         return ['$', 0, 0]
@@ -2226,21 +2229,21 @@ function s:F.map.getcol(linestr, vcol)
     endwhile
     return [col-1, a:vcol-width+lastwidth-1, lastwidth]
 endfunction
-"{{{3 map.translitselection
+"{{{2 map.translitselection
 function s:F.map.translitselection(type, start, end, ...)
-    "{{{4 transsymb
+    "{{{3 transsymb
     if !a:0
         let transsymb=s:F.comm.gettranssymb_throw()
     else
         let transsymb=a:1
     endif
-    "{{{4 Сохранение позиции курсора
+    "{{{3 Сохранение позиции курсора
     let view=winsaveview()
     let vcol=virtcol('.')
-    "{{{4 Объявление переменных
+    "{{{3 Объявление переменных
     let [sline, scol, soff]=a:start[1:]
     let [eline, ecol, eoff]=a:end[1:]
-    "{{{4 Транслитерация набора линий
+    "{{{3 Транслитерация набора линий
     if a:type is# 'line'
         if sline>eline
             let [sline, eline]=[eline, sline]
@@ -2250,7 +2253,7 @@ function s:F.map.translitselection(type, start, end, ...)
             call setline(line, s:F.map.trwithnulls(getline(line), transsymb))
             let line+=1
         endwhile
-    "{{{4 Транслитерация символьного диапозона
+    "{{{3 Транслитерация символьного диапозона
     elseif a:type is# 'char'
         if sline>eline || (sline==eline && scol>ecol)
             let [sline, scol, eline, ecol]=[eline, ecol, sline, scol]
@@ -2264,9 +2267,9 @@ function s:F.map.translitselection(type, start, end, ...)
         let ttext=s:F.map.nullnl(map(s:F.map.nullnl(text),
                     \                's:F.trs.main(v:val, transsymb)'))
         call s:F.map.insertatposition([sline, scol], ttext)
-    "{{{4 Транслитерация прямоугольного блока
+    "{{{3 Транслитерация прямоугольного блока
     elseif a:type is# 'block'
-        "{{{5 Объявление переменных
+        "{{{4 Объявление переменных
         let svcol=virtcol([sline, scol])+soff
         let evcol=virtcol([eline, ecol])+eoff
         if sline>eline
@@ -2276,7 +2279,7 @@ function s:F.map.translitselection(type, start, end, ...)
             let [svcol, evcol]=[evcol, svcol]
         endif
         let line=sline-1
-        "{{{5 Основной цикл
+        "{{{4 Основной цикл
         while line<=eline
             let line+=1
             let linestr=getline(line)
@@ -2284,19 +2287,19 @@ function s:F.map.translitselection(type, start, end, ...)
             if cscol is# '$'
                 continue
             endif
-            "{{{6 lstr (Строка до транслитерируемой части)
+            "{{{5 lstr (Строка до транслитерируемой части)
             let lstr=((cscol>0)?(linestr[:(cscol-1)]):(''))
             if csoff>0
                 let lstr.=repeat(' ', csoff)
             endif
-            "}}}6
+            "}}}5
             let [cecol, ceoff, cew]=s:F.map.getcol(linestr, evcol+1)
-            "{{{6 rstr (Строка после транслитерируемой части)
+            "{{{5 rstr (Строка после транслитерируемой части)
             let rstr=((cecol isnot# '$')?(linestr[(cecol):]):(''))
             if ceoff>0
                 let rstr=substitute(rstr, '\v^.', repeat(' ', cew-ceoff), '')
             endif
-            "{{{6 tstr (Транслитерируемая часть)
+            "{{{5 tstr (Транслитерируемая часть)
             let tstr=((cecol is# '$')?
                         \   (linestr[(cscol):]):
                         \   ((cecol>cscol)?
@@ -2308,24 +2311,24 @@ function s:F.map.translitselection(type, start, end, ...)
             if ceoff>0
                 let tstr.=repeat(' ', ceoff)
             endif
-            "}}}6
+            "}}}5
             let tstr=s:F.map.trwithnulls(tstr, transsymb)
             call setline(line, lstr.tstr.rstr)
-            "{{{6 undojoin
+            "{{{5 undojoin
             if line<=eline
                 undojoin
             endif
-            "}}}6
+            "}}}5
         endwhile
-        "}}}5
+        "}}}4
     endif
-    "{{{4 Восстановление позиции курсора
+    "{{{3 Восстановление позиции курсора
     call winrestview(view)
     keepjumps execute 'normal!' vcol.'|'
-    "}}}4
+    "}}}3
 endfunction
 call s:_f.postresource('trmotion', s:F.map.translitselection)
-"{{{3 map.input
+"{{{2 map.input
 let s:inputhistory=[]
 let g:TR3_INPUT_HISTORY=s:inputhistory
 let s:inputwords={}
@@ -2348,7 +2351,7 @@ function s:F.map.input()
 endfunction
 let s:F.map.input=s:_f.wrapfunc({'function': s:F.map.input,
             \                  '@altervars': [['+history(@)', s:inputhistory]]})
-"{{{3 map.doinput
+"{{{2 map.doinput
 function s:F.map.doinput(transsymb)
     try
         let r=s:F.map.input()
@@ -2366,7 +2369,7 @@ function s:F.map.doinput(transsymb)
     endfor
     return s:F.trs.main(r, a:transsymb)
 endfunction
-"{{{3 map.lrset
+"{{{2 map.lrset
 function s:F.map.lrset(transsymb, patlist)
     let line=getline('.')
     let column=col('.')
@@ -2397,7 +2400,7 @@ function s:F.map.lrset(transsymb, patlist)
     return "\<C-o>".vcolstart."|\<C-\>\<C-o>\"_d".vcolend.'|'.
                 \((vcolend==virtcol('$'))?("\<C-\>\<C-o>\"_x"):('')).r
 endfunction
-"{{{3 strfunc.function
+"{{{2 strfunc.function
 let s:strfunc={}
 function s:strfunc.function(char, ...)
     if a:0
@@ -2427,7 +2430,7 @@ function s:strfunc.function(char, ...)
 endfunction
 call s:_f.postresource('str', s:strfunc.function)
 unlet s:strfunc
-"{{{3 map.doonchar
+"{{{2 map.doonchar
 function s:F.map.doonchar(command, char)
     if a:command is# 'r'
         if a:char=~#'^.$'
@@ -2493,8 +2496,8 @@ function s:F.map.doonchar(command, char)
     endif
     return a:command.a:char
 endfunction
-"{{{3 mapfunc.function
-"{{{4 s:mapactions
+"{{{2 mapfunc.function
+"{{{3 s:mapactions
 let s:twregs=[
             \['\v(\k*)',        '\v(\k+|%$)'       ],
             \['\v(%(\k@!\S)*)', '\v(%(\k@!\S)+|%$)'],
@@ -2515,7 +2518,7 @@ let s:mapactions={
             \'TranslitPrev':      's:F.map.doonchar("F", a:1[1])',
         \}
 let s:mapactions.CmdTransliterate=s:mapactions.Transliterate
-"}}}4
+"}}}3
 let s:mapfunc={}
 function s:mapfunc.function(mapname, ...)
     if a:0!=1
