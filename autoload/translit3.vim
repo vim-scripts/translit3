@@ -1,13 +1,13 @@
 "{{{1 Начало
 scriptencoding utf-8
-execute frawor#Setup('0.2', {'@/options': '0.0',
+execute frawor#Setup('0.3', {'@/options': '0.0',
             \               '@/mappings': '0.0',
-            \              '@/functions': '0.0',
+            \              '@/functions': '0.1',
             \                     '@/os': '0.0',
+            \                    '@/fwc': '0.4',
             \                  '@/table': '0.1',
             \   '@/decorators/altervars': '0.0',
             \                '@/history': '0.0',
-            \              '@/resources': '0.0',
             \                   '@%json': '0.0',})
 call map(['trs', 'tof', 'stuf', 'comm', 'mod', 'prnt', 'map', 'mng', 'comp',
             \], 'extend(s:F, {v:val : {}})')
@@ -578,7 +578,6 @@ function s:F.comm.gettranssymb(...)
     "}}}3
     return result
 endfunction
-call s:_f.postresource('usedtranssymbs', s:usedtranssymbs)
 function s:F.comm.gettranssymb_throw(...)
     let r=call(s:F.comm.gettranssymb, a:000, {})
     if type(r)!=type({})
@@ -1911,9 +1910,36 @@ let s:efbodies={
             \'print': 'call(s:F.prnt.main, args, {})',
             \'transliterate': 'call(s:F.trs.main, args, {})',
         \}
-let s:extfunctions={}
+let s:ctr=':0 _'
+let s:extfunctions={
+            \'Tr3transliterate': {'@FWC': ['type "" '.
+            \                              '['.s:ctr.']',  'filter']},
+            \'Tr3add':           {'@FWC': ['match /./ '.
+            \                              'type "" '.
+            \                              '[:=(0) bool '.
+            \                              '['.s:ctr.']]', 'filter']},
+            \'Tr3include':       {'@FWC': ['match /./ '.
+            \                              'either (type ("",{}),|isfunc) '.
+            \                              '['.s:ctr.']',  'filter']},
+            \'Tr3exclude':       {'@FWC': ['match /./ '.
+            \                              'either (type ("",{}),|isfunc) '.
+            \                              '['.s:ctr.']',  'filter']},
+            \'Tr3del':           {'@FWC': ['match /./ '.
+            \                              '[:=(0) bool '.
+            \                              '['.s:ctr.']]', 'filter']},
+            \'Tr3setoption':     {'@FWC': ['in [capital] '.
+            \                              'in [first none] '.
+            \                              'match /./ '.
+            \                              '[:=(0) bool '.
+            \                              '['.s:ctr.']]', 'filter']},
+            \'Tr3deloption':     {'@FWC': ['in [capital] '.
+            \                              'match /./ '.
+            \                              '['.s:ctr.']',  'filter']},
+            \'Tr3print':         {'@FWC': ['range -2 inf '.
+            \                              '['.s:ctr.']',  'filter']},
+        \}
 for [s:key, s:val] in items(s:efbodies)
-    execute      'function s:extfunctions.Tr3'.s:key."(...)\n".
+    execute      'function s:extfunctions.Tr3'.s:key.".function(...)\n".
                 \"    let args=copy(a:000)\n".
                 \"    let args[-1]=s:F.comm.gettranssymb_throw(args[-1])\n".
                 \'    if type(args[-1])!='.type({})"\n".
@@ -1922,9 +1948,9 @@ for [s:key, s:val] in items(s:efbodies)
                 \'    return '.s:val."\n".
                 \'endfunction'
 endfor
-unlet s:key s:val s:efbodies
-call s:_f.postresource('extfunctions', s:extfunctions)
+call extend(s:_aufunctions, s:extfunctions)
 unlet s:extfunctions
+unlet s:key s:val s:efbodies
 "{{{1 mng:  управление плагином
 "{{{2 mng.tof: управление транслитерацией по мере ввода
 function s:F.mng.tof(bang, action, ...)
@@ -2076,10 +2102,34 @@ let s:rewritemode={"v": 'char',
             \      "V": 'line',
             \ "\<C-v>": 'block',}
 "}}}3
-let s:cmdfun={}
-function s:cmdfun.function(bang, startline, endline, action, ...)
-    "{{{3 Действия
-    "{{{4 Транслитерировать
+"{{{3 cmdfun
+let s:_aufunctions.cmd={'@FWC': ['-onlystrings _ _ _ '.
+            \'<transliterate (in [selection lines] '.
+            \                    '{using '.s:ctr.'}) '.
+            \ 'setoption     (in [capital] '.
+            \                'in [first none] '.
+            \                '{for _ '.
+            \                 'in '.s:ctr.'}) '.
+            \ 'deloption     (in [capital] '.
+            \                '{for _ '.
+            \                 'in '.s:ctr.'}) '.
+            \ 'add           (_ _ {to   '.s:ctr.'}) '.
+            \ 'include       (_ _ {to   '.s:ctr.'}) '.
+            \ 'exclude       (_ _ {from '.s:ctr.'}) '.
+            \ 'delete        (_   {from '.s:ctr.'}) '.
+            \ 'save          (['.s:ctr.']) '.
+            \ 'print         {transsymb '.s:ctr.' '.
+            \                'columns   :=(-2)  range -2 inf}'.
+            \ 'tof           <restart - '.
+            \                'stop    - '.
+            \                'start   ['.s:ctr.']> '.
+            \ 'cache         <purge   in [innertrans trans printtrans '.
+            \                            'toftrans] ~start 1 '.
+            \                'show    ->>',
+            \'filter']}
+"}}}3
+function s:_aufunctions.cmd.function(bang, startline, endline, action, ...)
+    "{{{3 Транслитерировать
     if a:action is# 'transliterate'
         if a:1 is# 'lines'
             return s:F.map.translitselection('line', [0, 1, a:startline, 0],
@@ -2090,19 +2140,17 @@ function s:cmdfun.function(bang, startline, endline, action, ...)
                         \                    getpos("'<"), getpos("'>"),
                         \                s:F.comm.gettranssymb_throw(a:2.using))
         endif
-    "{{{4 Напечатать таблицу транслитерации
+    "{{{3 Напечатать таблицу транслитерации
     elseif a:action is# 'print'
         echo s:F.prnt.main(a:1.columns,
                     \      s:F.comm.gettranssymb_throw(a:1.transsymb))
         return 1
-    "{{{4 Действия, описанные в s:cmdactions
+    "{{{3 Действия, описанные в s:cmdactions
     elseif has_key(s:cmdactions, a:action)
         return eval(s:cmdactions[a:action])
     endif
     "}}}3
 endfunction
-call s:_f.postresource('cmd', s:cmdfun.function)
-unlet s:cmdfun
 "{{{1 s:cache: кэш
 let s:cache={'init':{}}
 " init — значения, которыми инициализируется пустой кэш.
@@ -2280,7 +2328,7 @@ function s:F.map.translitselection(type, start, end, ...)
         endif
         let line=sline-1
         "{{{4 Основной цикл
-        while line<=eline
+        while line<eline
             let line+=1
             let linestr=getline(line)
             let [cscol, csoff, csw]=s:F.map.getcol(linestr, svcol)
@@ -2315,7 +2363,7 @@ function s:F.map.translitselection(type, start, end, ...)
             let tstr=s:F.map.trwithnulls(tstr, transsymb)
             call setline(line, lstr.tstr.rstr)
             "{{{5 undojoin
-            if line<=eline
+            if line<eline
                 undojoin
             endif
             "}}}5
@@ -2327,7 +2375,7 @@ function s:F.map.translitselection(type, start, end, ...)
     keepjumps execute 'normal!' vcol.'|'
     "}}}3
 endfunction
-call s:_f.postresource('trmotion', s:F.map.translitselection)
+let s:_aufunctions.trmotion={'function': s:F.map.translitselection}
 "{{{2 map.input
 let s:inputhistory=[]
 let g:TR3_INPUT_HISTORY=s:inputhistory
@@ -2401,8 +2449,8 @@ function s:F.map.lrset(transsymb, patlist)
                 \((vcolend==virtcol('$'))?("\<C-\>\<C-o>\"_x"):('')).r
 endfunction
 "{{{2 strfunc.function
-let s:strfunc={}
-function s:strfunc.function(char, ...)
+let s:_aufunctions.str={}
+function s:_aufunctions.str.function(char, ...)
     if a:0
         let addarg=a:1
     else
@@ -2428,8 +2476,6 @@ function s:strfunc.function(char, ...)
     let addarg.bclen+=1
     return [2, addarg.result, addarg]
 endfunction
-call s:_f.postresource('str', s:strfunc.function)
-unlet s:strfunc
 "{{{2 map.doonchar
 function s:F.map.doonchar(command, char)
     if a:command is# 'r'
@@ -2519,8 +2565,8 @@ let s:mapactions={
         \}
 let s:mapactions.CmdTransliterate=s:mapactions.Transliterate
 "}}}3
-let s:mapfunc={}
-function s:mapfunc.function(mapname, ...)
+let s:_aufunctions.map={}
+function s:_aufunctions.map.function(mapname, ...)
     if a:0!=1
         let transsymb=s:F.comm.gettranssymb_throw()
     endif
@@ -2536,8 +2582,25 @@ function s:mapfunc.function(mapname, ...)
     endif
     return eval(s:mapactions[a:mapname])
 endfunction
-call s:_f.postresource('map', s:mapfunc.function)
-unlet s:mapfunc
+"{{{1 cmdcomplete
+let s:usedtranssymbs=[]
+function s:F.trfiles()
+    return  map(filter(s:_r.os.listdir(s:_f.getoption('ConfigDir')),
+                \      'v:val[-5:] is# ".json"'),
+                \'v:val[:-6]')
+endfunction
+let s:cmdcomplete=substitute(substitute(s:_aufunctions.cmd['@FWC'][0],
+            \             '\V'.s:ctr,
+            \             'first (in usedtranssymbs, '.
+            \                    'in *F.trfiles(), '.
+            \                    '(path      match #\\v%(\\.json|/)$#), '.
+            \                    '(idof var  match /\\v^[gb]/))', 'g'),
+            \             ' _ _ _ ', ' ', '')
+unlet s:ctr
+let s:_aufunctions.comp={
+            \'function': s:_f.fwc.compile(s:cmdcomplete, 'complete')[0],
+        \}
+unlet s:cmdcomplete
 "{{{1
 call frawor#Lockvar(s:, 'usedtranssymbs,cache,tofbufdicts,'.
             \           'tofuntrcp,tofuntrcpchars,inputhistory,inputwords')
